@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.localstack.coordinator</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__LOCALSTACK_COORDINATOR_BINARY__</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ProcessType</key>
+	<string>Interactive</string>
+	<key>StandardOutPath</key>
+	<string>__LOCALSTACK_LOG_DIR__/coordinator.log</string>
+	<key>StandardErrorPath</key>
+	<string>__LOCALSTACK_LOG_DIR__/coordinator.error.log</string>
+</dict>
+</plist>
