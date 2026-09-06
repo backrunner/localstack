@@ -1,0 +1,5 @@
+.build/
+build/
+cli/target/
+packages/unplugin-localstack/node_modules/
+*.bak
