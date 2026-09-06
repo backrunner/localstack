@@ -1,0 +1,100 @@
+name: LocalStack
+options:
+  deploymentTarget:
+    macOS: "15.0"
+  bundleIdPrefix: com.localstack
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    MACOSX_DEPLOYMENT_TARGET: 15.0
+    MARKETING_VERSION: 0.2.2
+    CURRENT_PROJECT_VERSION: 4
+    CODE_SIGN_STYLE: Automatic
+targets:
+  LocalStackShared:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/LocalStackShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localstack.shared
+        GENERATE_INFOPLIST_FILE: true
+
+  LocalStackCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/LocalStackCore
+    dependencies:
+      - target: LocalStackShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localstack.core
+        GENERATE_INFOPLIST_FILE: true
+
+  LocalStackApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/LocalStackApp
+      - path: Resources/AppIcon.icns
+    dependencies:
+      - target: LocalStackCore
+      - target: LocalStackShared
+      - target: LocalStackWidget
+    entitlements:
+      path: Resources/LocalStack.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.localstack
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localstack.app
+        INFOPLIST_KEY_LSUIElement: true
+        GENERATE_INFOPLIST_FILE: true
+        PRODUCT_NAME: LocalStack
+        SWIFT_EMIT_LOC_STRINGS: true
+    info:
+      path: Resources/LocalStackApp-Info.plist
+      properties:
+        CFBundleIconFile: AppIcon
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSUIElement: true
+        CFBundleURLTypes:
+          - CFBundleURLName: LocalStack Service Deep Link
+            CFBundleURLSchemes:
+              - localstack
+
+  LocalStackCoordinator:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/LocalStackCoordinator
+    dependencies:
+      - target: LocalStackCore
+      - target: LocalStackShared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localstack.coordinator
+
+  LocalStackWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: Sources/LocalStackWidget
+      - path: Sources/LocalStackWidgetExtension
+    dependencies:
+      - target: LocalStackShared
+    entitlements:
+      path: Resources/LocalStack.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.localstack
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.localstack.app.widget
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_NSExtension_NSExtensionPointIdentifier: com.apple.widgetkit-extension
