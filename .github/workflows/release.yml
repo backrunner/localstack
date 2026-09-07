@@ -1,0 +1,155 @@
+name: Release DMG
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag, e.g. v0.2.3 or v0.2.3-beta.1'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dmg-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    name: Sign and notarize universal DMG
+    runs-on: macos-26
+    timeout-minutes: 90
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Manual dispatch accepts a tag, never an arbitrary branch.
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo '::error::Expected a v-prefixed semantic version tag.'
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          {
+            echo "tag=$RELEASE_TAG"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "VERSION=$version"
+            echo "BUILD_NUMBER=$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate signing and Apple ID notarization secrets
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE || secrets.CSC_LINK }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: Scripts/validate_release_secrets.sh
+
+      # This action uses a temporary keychain and deletes it in its post step.
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE || secrets.CSC_LINK }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD || secrets.CSC_KEY_PASSWORD }}
+
+      - name: Verify imported identity and credentials
+        env:
+          RELEASE: '1'
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: zsh -euo pipefail -c 'source Scripts/release_env.sh; configure_signing; configure_notary; xcrun notarytool history "${NOTARY_ARGS[@]}" --output-format json >/dev/null'
+
+      - name: Test Swift app and packaging failure gates
+        run: |
+          zsh -euo pipefail -c 'source Scripts/swift_env.sh; swift test'
+          python3 -m unittest discover -s Tests/PackagingTests -v
+
+      - name: Build, sign, notarize, staple, and verify app and DMG
+        env:
+          RELEASE: '1'
+          ARCHS: arm64 x86_64
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: make release-dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: localstack-macos-${{ steps.version.outputs.tag }}
+          path: |
+            build/LocalStack-${{ steps.version.outputs.version }}.dmg
+            build/LocalStack-${{ steps.version.outputs.version }}.dmg.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Apple notarization reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notary-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/notary/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    name: Assemble draft GitHub Release
+    needs: macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: localstack-macos-${{ needs.macos.outputs.tag }}
+          path: artifacts
+
+      - name: Create or update draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.macos.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum --check --strict ./*.sha256
+          if draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null)"; then
+            if [[ "$draft" != true ]]; then
+              echo '::error::Refusing to overwrite an already published release.'
+              exit 1
+            fi
+          else
+            flags=(--draft --verify-tag --generate-notes --title "LocalStack $RELEASE_TAG")
+            if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
+            gh release create "$RELEASE_TAG" "${flags[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" ./*.dmg ./*.sha256 --clobber

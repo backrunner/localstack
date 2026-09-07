@@ -29,7 +29,7 @@ LocalStack finds the HTML services running on your Mac, verifies that each page 
 ## Requirements
 
 - macOS 15 or newer
-- Xcode 16 or a Swift toolchain that supports Swift 6
+- Xcode 26 or newer (Swift 6.2+, matching `Package.swift`)
 - Rust toolchain for the CLI
 - Node.js 20+ for the TypeScript package
 
@@ -55,7 +55,12 @@ make package-app
 make package-dmg
 ```
 
-The packaging scripts use an available Developer ID certificate when present. For a local unsigned build, set `SIGN_IDENTITY=-`.
+The packaging scripts use an available Developer ID certificate when present. For a local ad-hoc build, set `SIGN_IDENTITY=-`.
+
+For distribution, `make release-dmg` requires Developer ID signing and Apple
+notarization for both the universal app and DMG. The **Release DMG** GitHub Actions
+workflow builds tagged versions and assembles a verified draft release. See
+[macOS release setup](docs/macos-release.md) for secrets, local commands, and verification.
 
 ## Use the CLI
 

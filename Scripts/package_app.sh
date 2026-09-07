@@ -3,9 +3,9 @@ set -euo pipefail
 ROOT_DIR="${0:A:h}/.."
 cd "$ROOT_DIR"
 source Scripts/swift_env.sh
-VERSION="${VERSION:-0.2.2}"
-BUILD_NUMBER="${BUILD_NUMBER:-4}"
-ARCHS="${ARCHS:-arm64 x86_64}"
+source Scripts/release_env.sh
+configure_signing
+if [[ "$NOTARIZE" == 1 ]]; then configure_notary; fi
 APP_DIR="$ROOT_DIR/build/LocalStack.app"
 BUILD_ARGS=(-c release --product LocalStackApp)
 for arch in ${=ARCHS}; do BUILD_ARGS+=(--arch "$arch"); done
@@ -26,7 +26,8 @@ plist = {
  'CFBundleDevelopmentRegion':'zh_CN', 'CFBundleDisplayName':'LocalStack',
  'CFBundleExecutable':'LocalStack', 'CFBundleIdentifier':'com.localstack.app',
  'CFBundleInfoDictionaryVersion':'6.0', 'CFBundleName':'LocalStack',
- 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':os.environ['LS_VERSION'],
+ 'CFBundlePackageType':'APPL', 'CFBundleShortVersionString':os.environ['LS_VERSION'].split('-')[0],
+ 'LocalStackReleaseVersion':os.environ['LS_VERSION'],
  'CFBundleVersion':os.environ['LS_BUILD_NUMBER'], 'CFBundleIconFile':'AppIcon',
  'LSMinimumSystemVersion':'15.0', 'LSUIElement':True, 'NSHighResolutionCapable':True,
  'NSHumanReadableCopyright':'LocalStack',
@@ -34,17 +35,21 @@ plist = {
 }
 with open(os.path.join(os.environ['LS_PACKAGE_STAGE'],'Contents/Info.plist'),'wb') as f: plistlib.dump(plist, f)
 PY
-# Explicit SIGN_IDENTITY=- creates a local ad-hoc build. Otherwise use an available Developer ID.
-IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' | head -1)}"
-IDENTITY="${IDENTITY:--}"
-SIGN_ARGS=(--force --options runtime --sign "$IDENTITY")
-if [[ "$IDENTITY" != "-" ]]; then SIGN_ARGS+=(--timestamp); fi
+# The SwiftPM bundle contains one statically linked executable and no Widget extension.
+# It needs no restricted App Group entitlement or provisioning profile.
+verify_architectures "$STAGE/Contents/MacOS/LocalStack"
+SIGN_ARGS=(--force --options runtime --sign "$SIGN_IDENTITY")
+if [[ "$SIGN_IDENTITY" != "-" ]]; then SIGN_ARGS+=(--timestamp); fi
 codesign "${SIGN_ARGS[@]}" "$STAGE"
-codesign --verify --deep --strict "$STAGE"
+verify_signature "$STAGE" app
+if [[ "$NOTARIZE" == 1 ]]; then Scripts/notarize.sh "$STAGE"; fi
+BACKUP="${STAGE:h}/LocalStack.previous.app"
 if [[ -e "$APP_DIR" ]]; then
-  mv "$APP_DIR" "$ROOT_DIR/build/LocalStack.previous.app"
+  mv "$APP_DIR" "$BACKUP"
 fi
-mv "$STAGE" "$APP_DIR"
-if [[ -d "$ROOT_DIR/build/LocalStack.previous.app" ]]; then rm -rf "$ROOT_DIR/build/LocalStack.previous.app"; fi
+if ! mv "$STAGE" "$APP_DIR"; then
+  if [[ -e "$BACKUP" ]]; then mv "$BACKUP" "$APP_DIR"; fi
+  exit 1
+fi
 print "Packaged: $APP_DIR ($ARCHS), version $VERSION"
-print "Signed with: $IDENTITY"
+print "Signed with: $SIGN_IDENTITY"

@@ -1,4 +1,4 @@
-.PHONY: build test install-local install-coordinator uninstall-coordinator package-app package-dmg install-app assets clean
+.PHONY: build test test-packaging install-local install-coordinator uninstall-coordinator package-app package-dmg release-dmg install-app assets clean
 
 build:
 	zsh -c 'source Scripts/swift_env.sh; swift build -c release'
@@ -8,6 +8,9 @@ test:
 	zsh -c 'source Scripts/swift_env.sh; swift test'
 	cargo test --manifest-path cli/Cargo.toml
 	npm --prefix packages/unplugin-localstack test
+
+test-packaging:
+	python3 -m unittest discover -s Tests/PackagingTests -v
 
 install-local:
 	cargo install --path cli --root "$${HOME}/.local"
@@ -23,6 +26,9 @@ package-app:
 
 package-dmg:
 	Scripts/package_dmg.sh
+
+release-dmg:
+	RELEASE=1 Scripts/package_dmg.sh
 
 install-app:
 	Scripts/install_app.sh

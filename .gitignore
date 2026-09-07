@@ -3,3 +3,5 @@ build/
 cli/target/
 packages/unplugin-localstack/node_modules/
 *.bak
+__pycache__/
+*.p12
