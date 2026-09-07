@@ -15,8 +15,8 @@ export VERSION BUILD_NUMBER ARCHS RELEASE NOTARIZE
 python3 - <<'PY'
 import os, re, sys
 version = os.environ['VERSION']
-if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?', version):
-    sys.exit('VERSION must be a semantic version, e.g. 0.2.3 or 0.2.3-beta.1.')
+if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta\.[1-9][0-9]*)?', version):
+    sys.exit('VERSION must use X.Y.Z or X.Y.Z-beta.N, e.g. 0.2.3 or 0.2.3-beta.1.')
 if not re.fullmatch(r'[1-9][0-9]*(\.[0-9]+){0,2}', os.environ['BUILD_NUMBER']):
     sys.exit('BUILD_NUMBER must contain one to three numeric components, starting with a positive integer.')
 archs = os.environ['ARCHS'].split()

@@ -47,8 +47,8 @@ jobs:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo '::error::Expected a v-prefixed semantic version tag.'
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]]; then
+            echo '::error::Expected vX.Y.Z or vX.Y.Z-beta.N.'
             exit 1
           fi
           version="${RELEASE_TAG#v}"
@@ -102,12 +102,23 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
         run: make release-dmg
 
+      - name: Verify notarized update replacement and relaunch
+        env:
+          RELEASE: '1'
+          ARCHS: arm64 x86_64
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: zsh Scripts/test_update_installation.sh
+
       - uses: actions/upload-artifact@v4
         with:
           name: localstack-macos-${{ steps.version.outputs.tag }}
           path: |
             build/LocalStack-${{ steps.version.outputs.version }}.dmg
             build/LocalStack-${{ steps.version.outputs.version }}.dmg.sha256
+            build/LocalStack-update.json
           if-no-files-found: error
           retention-days: 30
 
@@ -152,4 +163,4 @@ jobs:
             if [[ "$RELEASE_TAG" == *-* ]]; then flags+=(--prerelease); fi
             gh release create "$RELEASE_TAG" "${flags[@]}"
           fi
-          gh release upload "$RELEASE_TAG" ./*.dmg ./*.sha256 --clobber
+          gh release upload "$RELEASE_TAG" ./*.dmg ./*.sha256 ./LocalStack-update.json --clobber

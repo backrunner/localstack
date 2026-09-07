@@ -62,6 +62,12 @@ notarization for both the universal app and DMG. The **Release DMG** GitHub Acti
 workflow builds tagged versions and assembles a verified draft release. See
 [macOS release setup](docs/macos-release.md) for secrets, local commands, and verification.
 
+Installed signed builds check for updates daily. Settings offers Stable and Beta
+channels, automatic downloads, and a user-confirmed restart to install. Beta also
+receives newer stable releases; switching channels never downgrades an app. See
+[automatic updates](docs/auto-updates.md) for version rules and the one-time manual
+migration from the original `0.2.3-beta.1` release.
+
 ## Use the CLI
 
 ```bash

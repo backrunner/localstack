@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import LocalStackShared
+import LocalStackCore
 
 struct TrayPanel: View {
     @Bindable var model: AppModel
@@ -37,7 +38,7 @@ struct TrayPanel: View {
         VStack(spacing: 0) {
             header
             if showSettings {
-                settings
+                SettingsView(model: model)
             } else {
                 searchBar
                 listHeader
@@ -87,8 +88,8 @@ struct TrayPanel: View {
         HStack(spacing: 12) {
             BrandIcon(size: 38)
             VStack(alignment: .leading, spacing: 1) {
-                Text("LocalStack").font(.system(size: 19, weight: .semibold, design: .rounded))
-                Text(showSettings ? "设置" : "你的本地开发，一目了然")
+                Text(showSettings ? "设置" : "LocalStack").font(.system(size: 19, weight: .semibold, design: .rounded))
+                Text(showSettings ? "LocalStack" : "你的本地开发，一目了然")
                     .font(.lsCaption).foregroundStyle(.secondary)
             }
             Spacer()
@@ -101,8 +102,13 @@ struct TrayPanel: View {
                     .accessibilityLabel("\(String(activeServices.count)) 个本地服务")
             }
             if showSettings {
-                Button { showSettings = false } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(IconButtonStyle())
+                Button { showSettings = false } label: {
+                    Image(systemName: "chevron.left")
+                        .foregroundStyle(colorScheme == .dark ? Color(white: 0.94) : Color(white: 0.18))
+                        .frame(width: 16, height: 20)
+                }
+                    .buttonBorderShape(.circle)
+                    .lsGlassAction()
                     .accessibilityLabel("返回服务列表")
                     .help("返回服务列表")
             } else {
@@ -215,93 +221,16 @@ struct TrayPanel: View {
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var settings: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            settingsTitle("启动")
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    settingsIcon("power")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("登录 Mac 时启动").font(.system(size: 13, weight: .medium))
-                        Text("在登录后自动运行 LocalStack")
-                            .font(.lsCaption).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 12)
-                    Toggle("登录 Mac 时启动", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
-                        .labelsHidden()
-                }
-                if model.loginRequiresApproval {
-                    Text("需要在系统设置中批准")
-                        .font(.lsCaption).foregroundStyle(.orange)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 10)
-                }
-            }
-            .padding(14)
-            .liquidSurface(radius: LSPanelLayout.cardRadius, tint: Color.white.opacity(0.025))
-
-            Button { model.openLoginSettings() } label: {
-                Label("打开系统登录项设置", systemImage: "arrow.up.forward.app")
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.lsAccent)
-            .padding(.leading, 4)
-
-            settingsTitle("快捷键")
-            Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 13) {
-                shortcutRow("搜索", "⌘F")
-                shortcutRow("刷新", "⌘R")
-                shortcutRow("打开选中服务 / 首个搜索结果", "↩")
-                shortcutRow("停止选中服务", "⌫")
-            }
-            .padding(14)
-            .foregroundStyle(.secondary)
-            .liquidSurface(radius: LSPanelLayout.cardRadius, tint: Color.white.opacity(0.025))
-            Spacer()
-            Text("版本 \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.1")")
-                .font(.lsCaption).foregroundStyle(.secondary)
-        }
-        .font(.system(size: 12))
-        .padding(.horizontal, LSPanelLayout.horizontalInset)
-        .padding(.bottom, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private func settingsTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .padding(.leading, 4)
-    }
-
-    private func settingsIcon(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.lsAccent)
-            .frame(width: 28, height: 28)
-            .background(Color.lsAccent.opacity(0.12), in: Circle())
-    }
-
-    private func shortcutRow(_ label: String, _ keys: String) -> some View {
-        GridRow {
-            Text(label)
-            Text(keys)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundStyle(.primary.opacity(0.65))
-                .gridColumnAlignment(.trailing)
-        }
-    }
-
     private var footer: some View {
         HStack(spacing: 9) {
-            Text(copiedURL != nil ? "地址已复制" : statusText)
+            Text(showSettings ? "设置自动保存" : copiedURL != nil ? "地址已复制" : statusText)
                 .font(.lsCaption).foregroundStyle(.secondary)
             Spacer()
-            Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
-                .buttonStyle(IconButtonStyle())
-                .accessibilityLabel("设置").help("设置")
+            if !showSettings {
+                Button { showSettings = true } label: { Image(systemName: "slider.horizontal.3") }
+                    .buttonStyle(IconButtonStyle())
+                    .accessibilityLabel("设置").help("设置")
+            }
             Menu {
                 Button("关于 LocalStack") { NSApp.orderFrontStandardAboutPanel() }
                 Divider()
@@ -311,11 +240,13 @@ struct TrayPanel: View {
                 .frame(width: 32).help("更多").accessibilityLabel("更多")
         }
         .padding(.horizontal, LSPanelLayout.horizontalInset)
-        .frame(height: 52)
+        .frame(height: showSettings ? 40 : 52)
     }
 
     private var selectedService: ServiceRecord? { filteredServices.first { $0.id == selection } }
     private var statusText: String {
+        if case .ready = model.updater.state { return "新版本已就绪，可在设置中安装" }
+        if case .available = model.updater.state { return "有新版本，可在设置中更新" }
         if model.isRefreshing { return "正在刷新…" }
         guard model.isConnected, let updated = model.lastUpdated else { return "正在连接…" }
         return "更新于 \(updated.formatted(date: .omitted, time: .shortened))"

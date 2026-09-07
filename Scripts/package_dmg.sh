@@ -29,6 +29,11 @@ else
 fi
 Scripts/verify_dmg.sh "$STAGED_DMG"
 (cd "$STAGE_DIR" && shasum -a 256 "${DMG_PATH:t}" > "${DMG_PATH:t}.sha256")
+if [[ "$RELEASE" == 1 ]]; then
+  python3 Scripts/generate_update_manifest.py "$APP_DIR" "$STAGED_DMG" \
+    --team "$APPLE_TEAM_ID" --output "$STAGE_DIR/LocalStack-update.json"
+fi
 mv "$STAGED_DMG" "$DMG_PATH"
 mv "$STAGE_DIR/${DMG_PATH:t}.sha256" "$DMG_PATH.sha256"
+if [[ "$RELEASE" == 1 ]]; then mv "$STAGE_DIR/LocalStack-update.json" "$ROOT_DIR/build/LocalStack-update.json"; fi
 print "DMG: $DMG_PATH"

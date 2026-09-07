@@ -45,7 +45,9 @@ supply the build number. Prereleases use the numeric base version in Apple's
 `LocalStackReleaseVersion` and the DMG filename.
 
 The workflow creates an Actions artifact and a **draft GitHub Release** containing
-`LocalStack-<version>.dmg` and its `.sha256` checksum. Prerelease tags are marked
+`LocalStack-<version>.dmg`, its `.sha256` checksum, and `LocalStack-update.json`.
+The update manifest describes the final notarized image and signed bundle version.
+Prerelease tags are marked
 as prereleases. Review the draft and publish it in GitHub when ready. Reruns may
 replace draft assets; published releases are never overwritten.
 
@@ -53,6 +55,10 @@ Pull requests and pushes to `main` run **Validate macOS packaging**, which build
 and inspects a universal ad-hoc DMG without signing secrets. Both workflows use
 macOS 26 and the newest installed Xcode 26.x (Swift 6.2+); the app's deployment
 target remains macOS 15.
+
+In-app update behavior and stable/beta channel rules are documented in
+[DMG automatic updates](auto-updates.md). Release tags use only `vX.Y.Z` or
+`vX.Y.Z-beta.N`; both channels compare complete versions without downgrading.
 
 ## Local commands
 

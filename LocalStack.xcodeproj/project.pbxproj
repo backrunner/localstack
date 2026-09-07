@@ -9,11 +9,13 @@
 /* Begin PBXBuildFile section */
 		01FBFD4D9CD1982AA1599311 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21B512CB8ED8632BA190190B /* Theme.swift */; };
 		06A6153BCC9D336600D32297 /* LocalStackShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 49750E1FC0ED6D84B8D61053 /* LocalStackShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		083CBAF15622760C40320BAA /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E06939A0B4DD893B3BD4694 /* AppUpdater.swift */; };
 		097D01B7546D0209B6C6F0D1 /* LocalStackWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 166D88BA62585106D13C4816 /* LocalStackWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0E9BEE5272F549140AD94A14 /* AppBundleInstallation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F31713378B74CB6B56E6FAB3 /* AppBundleInstallation.swift */; };
 		11680E33CBB348856727AFBE /* LocalStackCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 379729944824C55B7B2CB20C /* LocalStackCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		11E2C42CECA0BDC6ADB825A0 /* Coordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D81F54FEC25731173E75C15 /* Coordinator.swift */; };
 		1277B807A1E01122A3ED0512 /* Dependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88C1D5C6BF8F473FB7D4830D /* Dependencies.swift */; };
+		16981423D5F51D3ED42D2CEA /* AppUpdatePackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0B9D86226AEA809C023DF7 /* AppUpdatePackage.swift */; };
 		1C660931291300D3F0294A90 /* ProcessInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8084D9ABEA432A44B419917 /* ProcessInspector.swift */; };
 		233F80962780012667C58730 /* LocalStackShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 49750E1FC0ED6D84B8D61053 /* LocalStackShared.framework */; };
 		2D6DE06F66F25B375AF5ECB2 /* WidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3CC062564C5B9474E41DA6 /* WidgetSnapshotStore.swift */; };
@@ -22,6 +24,8 @@
 		621E417EEA06615315FFCF33 /* LocalStackCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 379729944824C55B7B2CB20C /* LocalStackCore.framework */; };
 		81FB4CEFDEA73B7E71BA0E09 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CDF2BEF4419C3AFFB667885 /* Models.swift */; };
 		83668D077BD8094841025854 /* LocalStackShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 49750E1FC0ED6D84B8D61053 /* LocalStackShared.framework */; };
+		83CD23EFC890B87F21DE3F58 /* AppUpdateClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00EFCF25D5A788908F8617CA /* AppUpdateClient.swift */; };
+		90F2D28E0933AAF7A5387D78 /* ProcessSockets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21E9A5D366A2C00D6DBB44E /* ProcessSockets.swift */; };
 		9201B87447F34EAECA4905C3 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C1447A75C6A72A777E7EE2 /* main.swift */; };
 		95FCFA793858BDE611E731B4 /* DeepLinkRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33EBA82200347306761AAF73 /* DeepLinkRouter.swift */; };
 		970A58316B2CA4E759D3D6F3 /* AppInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = D45E51895F25338718617F64 /* AppInstaller.swift */; };
@@ -31,13 +35,16 @@
 		AC91548EA802BF4EEDDC85E0 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F9D1019BC37E8944892414 /* AppModel.swift */; };
 		AF53F7032AE77D4C471E3DED /* WidgetExtensionMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13AB47DCD554B9397A4495D0 /* WidgetExtensionMain.swift */; };
 		B6C7619DB5D3C498B3B05586 /* LocalStackCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 379729944824C55B7B2CB20C /* LocalStackCore.framework */; };
+		B7749B3BD8600EFE13946B49 /* AppUpdates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708A47B3D5E32D63AFD43A9D /* AppUpdates.swift */; };
 		BC4A27B683C027C382430DA1 /* RegistryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D1DF34ADB79C82082C4544 /* RegistryStore.swift */; };
 		C443A2FD150E2DD96CF5712A /* PageProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD56164BD12E825EF151CB5B /* PageProbe.swift */; };
 		C7C9895964111C98292E5AC1 /* LocalStackShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 49750E1FC0ED6D84B8D61053 /* LocalStackShared.framework */; };
 		CE0BDF149CCF595C22071E34 /* LocalStackAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43152AFDFB6E9D8BDE56A957 /* LocalStackAppMain.swift */; };
 		CEF2A4AE70B85A52AFDC8CEB /* RPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C783DA7C4FD7CB52881F87 /* RPC.swift */; };
+		E66E38D769EBED0EF81AC4D9 /* BoundedHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4FDDF52840CE8C81899842B /* BoundedHTTPClient.swift */; };
 		EE03562139DEF7D47CAD3B98 /* Glass.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6762AC5CA8DF50B0CECABB2A /* Glass.swift */; };
 		F7B5CD0A039B6978828FACD5 /* TrayPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A34EAE0199E32AE157A9848 /* TrayPanel.swift */; };
+		FF0802616337EA8A285F92AE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CAACF65ABAF66DA78B6285 /* SettingsView.swift */; };
 		FF196F4CCB0C6B92D0D988EF /* PortDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DD430AFC4E80D00236503C3 /* PortDiscovery.swift */; };
 /* End PBXBuildFile section */
 
@@ -120,6 +127,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		00EFCF25D5A788908F8617CA /* AppUpdateClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateClient.swift; sourceTree = "<group>"; };
 		13AB47DCD554B9397A4495D0 /* WidgetExtensionMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetExtensionMain.swift; sourceTree = "<group>"; };
 		166D88BA62585106D13C4816 /* LocalStackWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = LocalStackWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1CDF2BEF4419C3AFFB667885 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -138,13 +146,19 @@
 		58C783DA7C4FD7CB52881F87 /* RPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RPC.swift; sourceTree = "<group>"; };
 		5AEC81773721E6FC59D0A419 /* LocalStackWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStackWidget.swift; sourceTree = "<group>"; };
 		6762AC5CA8DF50B0CECABB2A /* Glass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glass.swift; sourceTree = "<group>"; };
+		6E0B9D86226AEA809C023DF7 /* AppUpdatePackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdatePackage.swift; sourceTree = "<group>"; };
+		708A47B3D5E32D63AFD43A9D /* AppUpdates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdates.swift; sourceTree = "<group>"; };
+		7E06939A0B4DD893B3BD4694 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		88C1D5C6BF8F473FB7D4830D /* Dependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dependencies.swift; sourceTree = "<group>"; };
 		AE8E7B56C4A433B071D829A3 /* PanelPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPreview.swift; sourceTree = "<group>"; };
+		C21E9A5D366A2C00D6DBB44E /* ProcessSockets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSockets.swift; sourceTree = "<group>"; };
+		C2CAACF65ABAF66DA78B6285 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		C7B09581761EF795B2C3133E /* AppIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = AppIcon.icns; sourceTree = "<group>"; };
 		C8084D9ABEA432A44B419917 /* ProcessInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessInspector.swift; sourceTree = "<group>"; };
 		CCAE2F76CF7E10CA631A36CF /* LocalStackCoordinator */ = {isa = PBXFileReference; includeInIndex = 0; path = LocalStackCoordinator; sourceTree = BUILT_PRODUCTS_DIR; };
 		D45E51895F25338718617F64 /* AppInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInstaller.swift; sourceTree = "<group>"; };
 		D4C1447A75C6A72A777E7EE2 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		D4FDDF52840CE8C81899842B /* BoundedHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedHTTPClient.swift; sourceTree = "<group>"; };
 		D863299C54662852E4E5C7FE /* IPCServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPCServer.swift; sourceTree = "<group>"; };
 		DD56164BD12E825EF151CB5B /* PageProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageProbe.swift; sourceTree = "<group>"; };
 		F31713378B74CB6B56E6FAB3 /* AppBundleInstallation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBundleInstallation.swift; sourceTree = "<group>"; };
@@ -225,9 +239,11 @@
 			children = (
 				D45E51895F25338718617F64 /* AppInstaller.swift */,
 				47F9D1019BC37E8944892414 /* AppModel.swift */,
+				7E06939A0B4DD893B3BD4694 /* AppUpdater.swift */,
 				33EBA82200347306761AAF73 /* DeepLinkRouter.swift */,
 				43152AFDFB6E9D8BDE56A957 /* LocalStackAppMain.swift */,
 				AE8E7B56C4A433B071D829A3 /* PanelPreview.swift */,
+				C2CAACF65ABAF66DA78B6285 /* SettingsView.swift */,
 				2A34EAE0199E32AE157A9848 /* TrayPanel.swift */,
 				224F2CF616DB62EACB017FC2 /* Design */,
 			);
@@ -255,12 +271,17 @@
 			isa = PBXGroup;
 			children = (
 				F31713378B74CB6B56E6FAB3 /* AppBundleInstallation.swift */,
+				00EFCF25D5A788908F8617CA /* AppUpdateClient.swift */,
+				6E0B9D86226AEA809C023DF7 /* AppUpdatePackage.swift */,
+				708A47B3D5E32D63AFD43A9D /* AppUpdates.swift */,
+				D4FDDF52840CE8C81899842B /* BoundedHTTPClient.swift */,
 				4D81F54FEC25731173E75C15 /* Coordinator.swift */,
 				88C1D5C6BF8F473FB7D4830D /* Dependencies.swift */,
 				D863299C54662852E4E5C7FE /* IPCServer.swift */,
 				DD56164BD12E825EF151CB5B /* PageProbe.swift */,
 				2DD430AFC4E80D00236503C3 /* PortDiscovery.swift */,
 				C8084D9ABEA432A44B419917 /* ProcessInspector.swift */,
+				C21E9A5D366A2C00D6DBB44E /* ProcessSockets.swift */,
 				54D1DF34ADB79C82082C4544 /* RegistryStore.swift */,
 			);
 			path = LocalStackCore;
@@ -478,12 +499,17 @@
 			buildActionMask = 2147483647;
 			files = (
 				0E9BEE5272F549140AD94A14 /* AppBundleInstallation.swift in Sources */,
+				83CD23EFC890B87F21DE3F58 /* AppUpdateClient.swift in Sources */,
+				16981423D5F51D3ED42D2CEA /* AppUpdatePackage.swift in Sources */,
+				B7749B3BD8600EFE13946B49 /* AppUpdates.swift in Sources */,
+				E66E38D769EBED0EF81AC4D9 /* BoundedHTTPClient.swift in Sources */,
 				11E2C42CECA0BDC6ADB825A0 /* Coordinator.swift in Sources */,
 				1277B807A1E01122A3ED0512 /* Dependencies.swift in Sources */,
 				41175357FA1A16C02BDF4AF9 /* IPCServer.swift in Sources */,
 				C443A2FD150E2DD96CF5712A /* PageProbe.swift in Sources */,
 				FF196F4CCB0C6B92D0D988EF /* PortDiscovery.swift in Sources */,
 				1C660931291300D3F0294A90 /* ProcessInspector.swift in Sources */,
+				90F2D28E0933AAF7A5387D78 /* ProcessSockets.swift in Sources */,
 				BC4A27B683C027C382430DA1 /* RegistryStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -513,10 +539,12 @@
 			files = (
 				970A58316B2CA4E759D3D6F3 /* AppInstaller.swift in Sources */,
 				AC91548EA802BF4EEDDC85E0 /* AppModel.swift in Sources */,
+				083CBAF15622760C40320BAA /* AppUpdater.swift in Sources */,
 				95FCFA793858BDE611E731B4 /* DeepLinkRouter.swift in Sources */,
 				EE03562139DEF7D47CAD3B98 /* Glass.swift in Sources */,
 				CE0BDF149CCF595C22071E34 /* LocalStackAppMain.swift in Sources */,
 				A15E2567D10A6588D2B56622 /* PanelPreview.swift in Sources */,
+				FF0802616337EA8A285F92AE /* SettingsView.swift in Sources */,
 				01FBFD4D9CD1982AA1599311 /* Theme.swift in Sources */,
 				F7B5CD0A039B6978828FACD5 /* TrayPanel.swift in Sources */,
 			);
@@ -655,7 +683,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -674,7 +702,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.2.2;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -816,7 +844,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -829,7 +857,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.2.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

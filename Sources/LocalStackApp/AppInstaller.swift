@@ -3,6 +3,67 @@ import LocalStackCore
 
 @MainActor
 enum AppInstaller {
+    /// A verified copy of the new app performs the replacement after the old
+    /// process exits. It runs from a cache directory, never from a mounted DMG.
+    static func installPreparedUpdate() async {
+        var destination: URL?
+        var stoppedOldApp = false
+        do {
+            guard let index = CommandLine.arguments.firstIndex(of: "--update-destination"),
+                  CommandLine.arguments.count > index + 1 else { throw AppUpdateError.notInstalled }
+            let target = URL(fileURLWithPath: CommandLine.arguments[index + 1]).standardizedFileURL
+            let source = Bundle.main.bundleURL
+            guard isInstalled(target), target.lastPathComponent == "LocalStack.app",
+                  target == target.resolvingSymlinksInPath(), source != target,
+                  let old = Bundle(url: target), old.bundleIdentifier == "com.localstack.app",
+                  let oldText = old.object(forInfoDictionaryKey: "LocalStackReleaseVersion") as? String,
+                  let current = AppReleaseVersion(oldText),
+                  let newText = Bundle.main.object(forInfoDictionaryKey: "LocalStackReleaseVersion") as? String,
+                  let newer = AppReleaseVersion(newText), newer > current,
+                  let team = AppUpdatePackage.teamIdentifier(at: target) else { throw AppUpdateError.invalidRelease }
+            destination = target
+            let selected = UserDefaults.standard.string(forKey: "updateChannel").flatMap(AppUpdateChannel.init(rawValue:))
+                ?? (current.beta == nil ? .stable : .beta)
+            guard selected.accepts(newer) else { throw AppUpdateError.invalidRelease }
+            try await Task.detached {
+                try AppUpdatePackage.verifyApp(target, version: oldText, team: team)
+                try AppUpdatePackage.verifyApp(source, version: newText, team: team)
+            }.value
+            let running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.localstack.app")
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && $0.bundleURL?.resolvingSymlinksInPath() == target }
+            for app in running { app.terminate() }
+            for _ in 0..<100 {
+                if running.allSatisfy(\.isTerminated) { break }
+                try await Task.sleep(for: .milliseconds(100))
+            }
+            guard running.allSatisfy(\.isTerminated) else { throw AppUpdateError.installationFailed }
+            stoppedOldApp = true
+            try await Task.detached {
+                try AppBundleInstallation.install(source: source, destination: target, bundleIdentifier: "com.localstack.app") { source, stage in
+                    try AppUpdatePackage.run("/usr/bin/ditto", [source.path, stage.path])
+                    try AppUpdatePackage.verifyApp(stage, version: newText, team: team)
+                }
+            }.value
+            UserDefaults.standard.removeObject(forKey: "preparedAppUpdate")
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = true
+            configuration.arguments = ["--show-panel"]
+            _ = try await NSWorkspace.shared.openApplication(at: target, configuration: configuration)
+        } catch {
+            if stoppedOldApp, let destination {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.createsNewApplicationInstance = true
+                _ = try? await NSWorkspace.shared.openApplication(at: destination, configuration: configuration)
+            }
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert(error: error)
+            alert.messageText = "LocalStack 更新未完成"
+            alert.runModal()
+        }
+        NSApp.terminate(nil)
+    }
+
     static func isInstalled(_ url: URL) -> Bool {
         let parent = url.resolvingSymlinksInPath().deletingLastPathComponent()
         return parent.path == "/Applications" || parent == FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications")

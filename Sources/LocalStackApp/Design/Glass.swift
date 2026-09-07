@@ -38,6 +38,40 @@ struct LSGlassButton: ViewModifier {
     }
 }
 
+struct LSGlassAction: ViewModifier {
+    var prominent = false
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.buttonStyle(LSLiquidActionStyle(prominent: prominent))
+        } else {
+            if prominent { content.buttonStyle(.borderedProminent) }
+            else { content.buttonStyle(.bordered) }
+        }
+    }
+}
+
+@available(macOS 26.0, *)
+private struct LSLiquidActionStyle: ButtonStyle {
+    var prominent: Bool
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var scheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(prominent ? (scheme == .dark ? Color(white: 0.12) : .white) : (scheme == .dark ? Color(white: 0.94) : Color(white: 0.18)))
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(prominent ? Color.lsAccent : Color.primary.opacity(0.045), in: Capsule())
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .overlay(Capsule().strokeBorder(.primary.opacity(0.065), lineWidth: 0.5))
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+    }
+}
+
 /// A quiet, borderless glass surface used for content groups and list rows.
 struct LiquidSurface: ViewModifier {
     var radius: CGFloat = 18
@@ -57,6 +91,7 @@ struct LiquidSurface: ViewModifier {
 }
 
 extension View {
+    func lsGlassAction(prominent: Bool = false) -> some View { modifier(LSGlassAction(prominent: prominent)) }
     func glassBar() -> some View { modifier(GlassBar()) }
     func glassPill() -> some View { modifier(GlassPill()) }
     func lsGlassButton(fallbackBorderless: Bool = true) -> some View {

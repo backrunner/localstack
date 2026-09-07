@@ -8,6 +8,7 @@ import LocalStackShared
 @MainActor
 @Observable
 final class AppModel {
+    let updater: AppUpdater
     private enum Backend {
         case embedded(LocalStackCoordinator)
         case remote(UnixJSONRPCClient)
@@ -30,6 +31,7 @@ final class AppModel {
     private var observationTask: Task<Void, Never>?
 
     init(previewServices: [ServiceRecord]? = nil) {
+        updater = AppUpdater(preview: previewServices != nil)
         if let previewServices {
             services = previewServices
             isConnected = true
@@ -231,6 +233,7 @@ final class AppModel {
 
     /// Stops polling and releases the embedded coordinator/socket when the app exits.
     func shutdown() {
+        updater.shutdown()
         observationTask?.cancel()
         observationTask = nil
         server.stop()

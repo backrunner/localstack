@@ -21,13 +21,19 @@ final class LocalStackAppDelegate: NSObject, NSApplicationDelegate, NSPopoverDel
     private var model: AppModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--install-update") {
+            Task { await AppInstaller.installPreparedUpdate() }
+            return
+        }
         if AppInstaller.isRunningFromDiskImage(Bundle.main.bundleURL) || CommandLine.arguments.contains("--install") {
             Task { await AppInstaller.installFromDiskImage() }
             return
         }
         if let index = CommandLine.arguments.firstIndex(of: "--render-previews"), CommandLine.arguments.count > index + 1 {
-            PanelPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
-            NSApp.terminate(nil)
+            Task {
+                await PanelPreview.render(to: URL(fileURLWithPath: CommandLine.arguments[index + 1]))
+                NSApp.terminate(nil)
+            }
             return
         }
         let existing = NSRunningApplication.runningApplications(withBundleIdentifier: "com.localstack.app")
