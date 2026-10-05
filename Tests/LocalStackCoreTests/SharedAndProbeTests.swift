@@ -429,7 +429,7 @@ func registrationUpdatesURL() async throws {
 }
 
 @Test("IPC responds to a newline request without waiting for EOF")
-func ipcRespondsBeforeClientHalfClose() throws {
+func ipcRespondsBeforeClientHalfClose() async throws {
     let path = "/tmp/ls-newline-\(UUID().uuidString).sock"
     let server = UnixJSONRPCServer(socketPath: path)
     defer { server.stop() }
@@ -437,8 +437,23 @@ func ipcRespondsBeforeClientHalfClose() throws {
         .success(id: request.id, value: CoordinatorStatus(version: "test", socketPath: path, serviceCount: 0, lastScanAt: nil))
     }
 
+    // Blocking recv on the cooperative executor can prevent the server's async
+    // handler from running on low-core CI machines. Keep the client socket open
+    // (no half-close), but wait on a Dispatch worker instead.
+    let data: Data = try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global().async {
+            do { continuation.resume(returning: try receiveResponseBeforeHalfClose(path: path)) }
+            catch { continuation.resume(throwing: error) }
+        }
+    }
+    let response = try JSONDecoder.local.decode(RPCResponse.self, from: data)
+    #expect(response.id == "test")
+    #expect(response.error == nil)
+}
+
+private func receiveResponseBeforeHalfClose(path: String) throws -> Data {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    #expect(fd >= 0)
+    guard fd >= 0 else { throw POSIXError(.EIO) }
     defer { close(fd) }
     var timeout = timeval(tv_sec: 2, tv_usec: 0)
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
@@ -458,13 +473,20 @@ func ipcRespondsBeforeClientHalfClose() throws {
             Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
         }
     }
-    #expect(connected == 0)
+    guard connected == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     let request = Data("{\"id\":\"test\",\"method\":\"system.status\",\"params\":{}}\n".utf8)
     let sent = request.withUnsafeBytes { buffer in
         send(fd, buffer.baseAddress, buffer.count, 0)
     }
-    #expect(sent == request.count)
+    guard sent == request.count else { throw POSIXError(.EIO) }
+    var data = Data()
     var response = [UInt8](repeating: 0, count: 4096)
-    let received = recv(fd, &response, response.count, 0)
-    #expect(received > 0)
+    while !data.contains(0x0A) {
+        let received = recv(fd, &response, response.count, 0)
+        if received < 0 && errno == EINTR { continue }
+        guard received > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        data.append(response, count: received)
+        guard data.count <= 4096 else { throw POSIXError(.EMSGSIZE) }
+    }
+    return data
 }
