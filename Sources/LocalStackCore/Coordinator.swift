@@ -23,6 +23,7 @@ public actor LocalStackCoordinator {
     private var lastScanAt: Date?
     private var refreshInProgress = false
     private var isReady = false
+    private var discoveryBackoff = DiscoveryProbeBackoff()
 
     private struct ScanProbeResult: Sendable {
         let candidate: PortCandidate
@@ -245,17 +246,25 @@ public actor LocalStackCoordinator {
         var presentKeys = Set<String>()
         var newlyValidated = Set<UUID>()
         var candidatesToProbe: [(PortCandidate, ProcessFingerprint)] = []
+        var probeTargets = Set<DiscoveryProbeBackoff.Target>()
         for candidate in candidates {
-            guard let process = inspector.fingerprint(for: candidate.pid), inspector.ownsPort(candidate.port, pid: candidate.pid) else { continue }
+            guard let process = inspector.fingerprint(for: candidate.pid), process.uid == inspector.currentUID,
+                  inspector.ownsPort(candidate.port, pid: candidate.pid),
+                  !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else { continue }
             let candidateKey = key(port: candidate.port, process: process)
             presentKeys.insert(candidateKey)
+            let target = DiscoveryProbeBackoff.Target(candidate: candidate, process: process)
+            guard probeTargets.insert(target).inserted else { continue }
             if let existingIndex = records.firstIndex(where: { key(for: $0) == candidateKey }) {
                 records[existingIndex].sources.insert(.discovered)
                 records[existingIndex].lastSeenAt = .now
                 continue
             }
-            candidatesToProbe.append((candidate, process))
+            if discoveryBackoff.allows(target) {
+                candidatesToProbe.append((candidate, process))
+            }
         }
+        discoveryBackoff.retain(probeTargets)
 
         var iterator = candidatesToProbe.makeIterator()
         await withTaskGroup(of: ScanProbeResult.self) { group in
@@ -267,9 +276,17 @@ public actor LocalStackCoordinator {
                 if let next = iterator.next() {
                     addProbeTask(next, to: &group)
                 }
-                guard case .success(let page) = result.result,
-                      let currentProcess = inspector.fingerprint(for: result.candidate.pid), currentProcess == result.process,
-                      inspector.ownsPort(result.candidate.port, pid: result.candidate.pid) else {
+                let target = DiscoveryProbeBackoff.Target(candidate: result.candidate, process: result.process)
+                guard case .success(let page) = result.result else {
+                    if case .failure(let error) = result.result, error.code != .staleProcess {
+                        discoveryBackoff.reject(target)
+                    }
+                    continue
+                }
+                discoveryBackoff.accept(target)
+                guard let currentProcess = inspector.fingerprint(for: result.candidate.pid), currentProcess == result.process,
+                      inspector.ownsPort(result.candidate.port, pid: result.candidate.pid),
+                      !inspector.isInternalDevelopmentEndpoint(result.candidate, process: result.process) else {
                     continue
                 }
                 let service = upsert(
@@ -301,7 +318,13 @@ public actor LocalStackCoordinator {
         to group: inout TaskGroup<ScanProbeResult>
     ) {
         let (candidate, process) = item
-        group.addTask { [probe] in
+        group.addTask { [probe, inspector] in
+            guard inspector.fingerprint(for: candidate.pid) == process,
+                  inspector.ownsPort(candidate.port, pid: candidate.pid),
+                  !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else {
+                return ScanProbeResult(candidate: candidate, process: process,
+                    result: .failure(CoordinatorError(.staleProcess, "候选进程或监听端点已变化")))
+            }
             do {
                 return ScanProbeResult(candidate: candidate, process: process, result: .success(try await probe.probe(candidate.url)))
             } catch let error as CoordinatorError {

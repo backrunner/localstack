@@ -132,16 +132,38 @@ private actor MockProbe: PageProbing {
     }
 
     var outcomes: [Outcome]
+    var callCount = 0
 
     init(outcomes: [Outcome]) { self.outcomes = outcomes }
 
     func probe(_ url: URL) async throws -> PageProbeResult {
+        callCount += 1
         guard !outcomes.isEmpty else { throw CoordinatorError(.pageUnavailable, "no mock result") }
         switch outcomes.removeFirst() {
         case .success(let result): return result
         case .failure(let error): throw error
         }
     }
+}
+
+@Test("rejected discovery targets are not retried on every refresh")
+func rejectedDiscoveryBacksOff() async {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let candidate = PortCandidate(pid: process.pid, port: 4173, url: URL(string: "http://127.0.0.1:4173/")!)
+    let probe = MockProbe(outcomes: [.failure(CoordinatorError(.notBrowsablePage, "API"))])
+    let coordinator = LocalStackCoordinator(
+        store: testStore(),
+        discovery: MockDiscovery(candidates: [candidate, candidate]),
+        inspector: MockInspector(process: process),
+        probe: probe
+    )
+    await coordinator.boot()
+    for _ in 0..<5 { await coordinator.refresh() }
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).isEmpty)
+    // Explicit registration is user initiated and bypasses automatic backoff.
+    _ = try? await coordinator.register(RegistrationRequest(pid: process.pid, port: 4173))
+    #expect(await probe.callCount == 2)
 }
 
 private func mockEvidence(port: Int = 4173, path: String = "/") -> PageProbeResult {
@@ -161,6 +183,119 @@ private func testStore() -> RegistryStore {
         .appendingPathComponent("localstack-review-\(UUID().uuidString)", isDirectory: true)
         .appendingPathComponent("services.json")
     return RegistryStore(fileURL: path)
+}
+
+private final class LiveDiscovery: PortDiscovering, ProcessInspecting, Sendable {
+    struct Snapshot: Sendable {
+        let process: ProcessFingerprint
+        let ports: Set<Int>
+        let internalPorts: Set<Int>
+    }
+    let state: Mutex<Snapshot>
+    init(_ snapshot: Snapshot) { state = Mutex(snapshot) }
+    var currentUID: UInt32 { 501 }
+    func listenCandidates() -> [PortCandidate] {
+        state.withLock { snapshot in snapshot.ports.sorted().map {
+            PortCandidate(pid: snapshot.process.pid, port: $0, url: URL(string: "http://127.0.0.1:\($0)/")!)
+        } }
+    }
+    func fingerprint(for pid: Int32) -> ProcessFingerprint? {
+        state.withLock { $0.process.pid == pid ? $0.process : nil }
+    }
+    func ownsPort(_ port: Int, pid: Int32) -> Bool {
+        state.withLock { $0.process.pid == pid && $0.ports.contains(port) }
+    }
+    func isInternalDevelopmentEndpoint(_ candidate: PortCandidate, process: ProcessFingerprint) -> Bool {
+        state.withLock { $0.process == process && candidate.pid == process.pid && $0.internalPorts.contains(candidate.port) }
+    }
+    func executableName(for pid: Int32) -> String { "DemoServer" }
+    func terminate(_ fingerprint: ProcessFingerprint, force: Bool) -> Bool { false }
+}
+
+@Test("internal exclusions disappear immediately when live evidence changes", arguments: ["metadata", "pid-reuse", "port-owner"])
+func internalExclusionIsProcessBound(change: String) async throws {
+    let original = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: original, ports: [4173], internalPorts: [4173]))
+    let probe = MockProbe(outcomes: [.success(mockEvidence()), .success(mockEvidence())])
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    await coordinator.boot()
+    await coordinator.refresh()
+    #expect(await probe.callCount == 0)
+    #expect((await coordinator.list()).isEmpty)
+
+    let current = ProcessFingerprint(pid: change == "port-owner" ? 43 : 42, uid: 501,
+        startTime: Date(timeIntervalSince1970: change == "metadata" ? 100 : 101))
+    live.state.withLock { $0 = .init(process: current, ports: [4173], internalPorts: []) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).first?.process == current)
+
+    // Existing discovered records also stop being probed while proven internal.
+    live.state.withLock { $0 = .init(process: current, ports: [4173], internalPorts: [4173]) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).isEmpty)
+    live.state.withLock { $0 = .init(process: current, ports: [4173], internalPorts: []) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 2)
+    #expect((await coordinator.list()).count == 1)
+}
+
+@Test("an internal endpoint does not exclude a public listener of the same process")
+func internalExclusionIsEndpointBound() async {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: process, ports: [4173, 4174], internalPorts: [4173]))
+    let probe = MockProbe(outcomes: [.success(mockEvidence(port: 4174))])
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    await coordinator.boot()
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).map(\.port) == [4174])
+}
+
+private actor GatedDiscoveryProbe: PageProbing {
+    var callCount = 0
+    private var started: CheckedContinuation<Void, Never>?
+    private var pending: [CheckedContinuation<Void, Never>] = []
+    private var released = false
+
+    func waitForInitialBatch() async {
+        if callCount >= 4 { return }
+        await withCheckedContinuation { started = $0 }
+    }
+
+    func release() {
+        released = true
+        pending.forEach { $0.resume() }
+        pending.removeAll()
+    }
+
+    func probe(_ url: URL) async throws -> PageProbeResult {
+        callCount += 1
+        if callCount == 4 { started?.resume(); started = nil }
+        if !released { await withCheckedContinuation { pending.append($0) } }
+        return mockEvidence(port: url.port!)
+    }
+}
+
+@Test("queued probes revalidate process identity before contacting a reused port")
+func queuedProbeRejectsChangedProcess() async {
+    let original = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let ports: Set<Int> = [4173, 4174, 4175, 4176, 4177]
+    let live = LiveDiscovery(.init(process: original, ports: ports, internalPorts: []))
+    let probe = GatedDiscoveryProbe()
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    let boot = Task { await coordinator.boot() }
+    await probe.waitForInitialBatch()
+    let reused = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 101))
+    live.state.withLock { $0 = .init(process: reused, ports: ports, internalPorts: []) }
+    await probe.release()
+    await boot.value
+    #expect(await probe.callCount == 4)
+    #expect((await coordinator.list()).isEmpty)
+    // Neither queued stale work nor its rejection delays the new process.
+    await coordinator.refresh()
+    #expect(await probe.callCount == 9)
+    #expect((await coordinator.list()).count == 5)
 }
 
 @Test("a transient discovered probe failure gets the three-failure grace period")
