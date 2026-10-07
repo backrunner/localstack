@@ -28,6 +28,7 @@ func nativeSocketDiscoveryFindsListener() throws {
     #expect(!listeners.contains { $0.port == 0 })
     #expect(PortDiscovery().listenCandidates().contains { $0.pid == getpid() && $0.port == port })
     let inspector = ProcessInspector()
+    #expect(inspector.listeningPorts(for: getpid()).contains(port))
     let process = try #require(inspector.fingerprint(for: getpid()))
     let candidate = PortCandidate(pid: getpid(), port: port, url: URL(string: "http://127.0.0.1:\(port)/")!)
     #expect(!inspector.isInternalDevelopmentEndpoint(candidate, process: process))

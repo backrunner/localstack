@@ -12,18 +12,28 @@ public actor LocalStackCoordinator {
         let expiresAt: Date
     }
 
+    private struct TerminationIntent {
+        let record: ServiceRecord
+        let expiresAt: Date
+        let listeningPorts: Set<Int>
+        let affectedServiceIDs: Set<UUID>
+        let isRetryAfterSignal: Bool
+    }
+
     private let store: RegistryStore
     private let discovery: any PortDiscovering
     private let inspector: any ProcessInspecting
     private let probe: any PageProbing
     private var records: [ServiceRecord] = []
     private var leases: [UUID: Lease] = [:]
-    private var terminationTokens: [String: (serviceID: UUID, expiresAt: Date)] = [:]
+    private var terminationTokens: [String: TerminationIntent] = [:]
+    private var stoppingProcesses = Set<ProcessFingerprint>()
     private var pollTask: Task<Void, Never>?
     private var lastScanAt: Date?
     private var refreshInProgress = false
     private var isReady = false
     private var discoveryBackoff = DiscoveryProbeBackoff()
+    private var suppressedDiscoveryProcesses = Set<ProcessFingerprint>()
 
     private struct ScanProbeResult: Sendable {
         let candidate: PortCandidate
@@ -101,12 +111,16 @@ public actor LocalStackCoordinator {
             throw CoordinatorError(.invalidRequest, "PID 和端口无效")
         }
         let process = try validateProcess(pid: request.pid)
+        guard !stoppingProcesses.contains(process) else {
+            throw CoordinatorError(.terminationRejected, "服务正在停止")
+        }
         guard inspector.ownsPort(request.port, pid: request.pid) else {
             throw CoordinatorError(.portUnavailable, "PID \(request.pid) 当前没有监听端口 \(request.port)")
         }
         let targetURL = try normalizedURL(request.url, port: request.port)
         let result = try await probe.probe(targetURL)
         guard let currentProcess = inspector.fingerprint(for: request.pid), currentProcess == process,
+              !stoppingProcesses.contains(process),
               inspector.ownsPort(request.port, pid: request.pid) else {
             throw CoordinatorError(.staleProcess, "服务在页面验证期间已退出或端口已变化")
         }
@@ -194,9 +208,21 @@ public actor LocalStackCoordinator {
               inspector.ownsPort(record.port, pid: record.process.pid) else {
             throw CoordinatorError(.staleProcess, "服务进程已变化，无法终止")
         }
+        let ports = listeningPorts(for: record.process)
+        guard inspector.fingerprint(for: record.process.pid) == record.process else {
+            throw CoordinatorError(.staleProcess, "服务进程已变化，无法终止")
+        }
+        return makeTerminationPreview(record: record, ports: ports)
+    }
+
+    private func makeTerminationPreview(record: ServiceRecord, ports: Set<Int>, isRetryAfterSignal: Bool = false,
+                                        affectedServiceIDs: Set<UUID> = []) -> TerminationPreview {
         let token = UUID().uuidString
         let expiresAt = Date().addingTimeInterval(30)
-        terminationTokens[token] = (serviceID, expiresAt)
+        let affectedIDs = Set(records.filter { $0.process == record.process }.map(\.id))
+            .union([record.id]).union(affectedServiceIDs)
+        terminationTokens[token] = TerminationIntent(record: record, expiresAt: expiresAt, listeningPorts: ports,
+            affectedServiceIDs: affectedIDs, isRetryAfterSignal: isRetryAfterSignal)
         return TerminationPreview(
             serviceID: record.id,
             token: token,
@@ -204,36 +230,82 @@ public actor LocalStackCoordinator {
             url: record.url,
             pid: record.process.pid,
             executableName: inspector.executableName(for: record.process.pid),
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            process: record.process,
+            listeningPorts: ports.sorted(),
+            affectedServiceIDs: affectedIDs.sorted { $0.uuidString < $1.uuidString }
         )
     }
 
     public func terminate(serviceID: UUID, token: String, force: Bool = false) async throws -> TerminationResult {
         try requireReady()
-        guard let stored = terminationTokens.removeValue(forKey: token), stored.serviceID == serviceID,
+        guard let stored = terminationTokens.removeValue(forKey: token), stored.record.id == serviceID,
               stored.expiresAt > .now else {
             throw CoordinatorError(.staleTerminationToken, "停止确认已过期，请重新确认")
         }
-        guard let record = records.first(where: { $0.id == serviceID }),
-              let current = inspector.fingerprint(for: record.process.pid), current == record.process,
-              inspector.ownsPort(record.port, pid: record.process.pid) else {
+        let record = stored.record
+        let current = inspector.fingerprint(for: record.process.pid)
+        // A graceful shutdown can finish while its force confirmation is open.
+        // Its identity-bound retry is then a success, without signalling a new PID owner.
+        if stored.isRetryAfterSignal && current != record.process {
+            return try await completeTermination(stored, force: force, exited: true)
+        }
+        guard current == record.process, !stoppingProcesses.contains(record.process),
+              stored.isRetryAfterSignal || records.contains(where: { $0.id == serviceID && $0.process == record.process }) else {
+            throw CoordinatorError(.terminationRejected, "进程或端口已变化，未执行停止")
+        }
+        let ports = listeningPorts(for: record.process).union(stored.listeningPorts)
+        if stored.isRetryAfterSignal && !ports.contains(where: { inspector.ownsPort($0, pid: record.process.pid) }) {
+            return try await completeTermination(stored, force: force, exited: false)
+        }
+        guard stored.isRetryAfterSignal || inspector.ownsPort(record.port, pid: record.process.pid) else {
             throw CoordinatorError(.terminationRejected, "进程或端口已变化，未执行停止")
         }
         guard !isProtectedProcess(record.process.pid) else {
             throw CoordinatorError(.terminationRejected, "不能终止 LocalStack 自身进程")
         }
+        stoppingProcesses.insert(record.process)
+        defer { stoppingProcesses.remove(record.process) }
         guard inspector.terminate(record.process, force: force) else {
             throw CoordinatorError(.terminationRejected, "系统拒绝了停止信号")
         }
-        for _ in 0..<16 {
-            try await Task.sleep(for: .milliseconds(250))
-            if inspector.fingerprint(for: record.process.pid) != record.process {
-                removeRecord(serviceID)
-                try await persist()
-                return TerminationResult(serviceID: serviceID, signal: force ? SIGKILL : SIGTERM, exited: true)
+        var removedIDs = Set<UUID>()
+        for attempt in 0...16 {
+            let exited = inspector.fingerprint(for: record.process.pid) != record.process
+            if exited || (listeningPorts(for: record.process).isEmpty && !ports.contains(where: { inspector.ownsPort($0, pid: record.process.pid) })) {
+                return try await completeTermination(stored, force: force, exited: exited)
             }
+            // Remove each closed listener immediately, even if a sibling port
+            // needs more time or an explicit force stop. The retry retains its
+            // process snapshot independently of these disappearing records.
+            let closedIDs = Set(records.filter { $0.process == record.process
+                && !inspector.ownsPort($0.port, pid: record.process.pid) }.map(\.id))
+            if !closedIDs.isEmpty {
+                for id in closedIDs { removeRecord(id) }
+                removedIDs.formUnion(closedIDs)
+                try await persist()
+            }
+            if attempt < 16 { try await Task.sleep(for: .milliseconds(250)) }
         }
-        return TerminationResult(serviceID: serviceID, signal: force ? SIGKILL : SIGTERM, exited: false)
+        // Prepare the retry here from the same process snapshot. The selected
+        // port may already be closed while another listener is still draining.
+        let forcePreview = force ? nil : makeTerminationPreview(record: record, ports: ports, isRetryAfterSignal: true,
+            affectedServiceIDs: stored.affectedServiceIDs)
+        return TerminationResult(serviceID: serviceID, signal: force ? SIGKILL : SIGTERM, exited: false,
+            listenersClosed: false, removedServiceIDs: removedIDs.sorted { $0.uuidString < $1.uuidString }, forcePreview: forcePreview)
+    }
+
+    private func listeningPorts(for process: ProcessFingerprint) -> Set<Int> {
+        inspector.listeningPorts(for: process.pid).union(records.filter { $0.process == process }
+            .map(\.port).filter { inspector.ownsPort($0, pid: process.pid) })
+    }
+
+    private func completeTermination(_ intent: TerminationIntent, force: Bool, exited: Bool) async throws -> TerminationResult {
+        let ids = intent.affectedServiceIDs.union(records.filter { $0.process == intent.record.process }.map(\.id))
+        for id in ids { removeRecord(id) }
+        try await persist()
+        return TerminationResult(serviceID: intent.record.id, signal: force ? SIGKILL : SIGTERM, exited: exited,
+            listenersClosed: true, removedServiceIDs: ids.sorted { $0.uuidString < $1.uuidString })
     }
 
     public func status(socketPath: String) -> CoordinatorStatus {
@@ -242,6 +314,11 @@ public actor LocalStackCoordinator {
 
     private func scan() async -> Set<UUID> {
         lastScanAt = .now
+        // Keep exclusions even if a listener temporarily disappears. Only the
+        // lifetime of the identified process ends the exclusion.
+        suppressedDiscoveryProcesses = suppressedDiscoveryProcesses.filter {
+            inspector.fingerprint(for: $0.pid) == $0
+        }
         let candidates = discovery.listenCandidates()
         var presentKeys = Set<String>()
         var newlyValidated = Set<UUID>()
@@ -249,6 +326,8 @@ public actor LocalStackCoordinator {
         var probeTargets = Set<DiscoveryProbeBackoff.Target>()
         for candidate in candidates {
             guard let process = inspector.fingerprint(for: candidate.pid), process.uid == inspector.currentUID,
+                  !stoppingProcesses.contains(process),
+                  !isDiscoverySuppressed(for: process),
                   inspector.ownsPort(candidate.port, pid: candidate.pid),
                   !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else { continue }
             let candidateKey = key(port: candidate.port, process: process)
@@ -285,6 +364,8 @@ public actor LocalStackCoordinator {
                 }
                 discoveryBackoff.accept(target)
                 guard let currentProcess = inspector.fingerprint(for: result.candidate.pid), currentProcess == result.process,
+                      !stoppingProcesses.contains(currentProcess),
+                      !isDiscoverySuppressed(for: currentProcess),
                       inspector.ownsPort(result.candidate.port, pid: result.candidate.pid),
                       !inspector.isInternalDevelopmentEndpoint(result.candidate, process: result.process) else {
                     continue
@@ -301,7 +382,8 @@ public actor LocalStackCoordinator {
                 newlyValidated.insert(service.id)
             }
         }
-        for record in records where record.sources.contains(.discovered) && !presentKeys.contains(key(for: record)) {
+        for record in records where record.sources.contains(.discovered) && !presentKeys.contains(key(for: record))
+            && !stoppingProcesses.contains(record.process) {
             var updated = record
             updated.sources.remove(.discovered)
             if updated.sources.isEmpty {
@@ -318,8 +400,11 @@ public actor LocalStackCoordinator {
         to group: inout TaskGroup<ScanProbeResult>
     ) {
         let (candidate, process) = item
-        group.addTask { [probe, inspector] in
-            guard inspector.fingerprint(for: candidate.pid) == process,
+        group.addTask { [probe, inspector, self] in
+            // Recheck queued work too: the process can change its executable
+            // while earlier probes occupy the concurrency slots.
+            guard !(await isStoppingOrSuppressed(process)),
+                  inspector.fingerprint(for: candidate.pid) == process,
                   inspector.ownsPort(candidate.port, pid: candidate.pid),
                   !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else {
                 return ScanProbeResult(candidate: candidate, process: process,
@@ -337,13 +422,16 @@ public actor LocalStackCoordinator {
 
     private func healthCheck(excluding serviceIDs: Set<UUID>) async {
         for record in records where !serviceIDs.contains(record.id) {
+            guard !stoppingProcesses.contains(record.process) else { continue }
             guard let currentProcess = inspector.fingerprint(for: record.process.pid), currentProcess == record.process,
+                  !isDiscoverySuppressed(for: currentProcess),
                   inspector.ownsPort(record.port, pid: record.process.pid) else {
                 removeRecord(record.id)
                 continue
             }
             do {
                 let result = try await probe.probe(record.url)
+                guard !stoppingProcesses.contains(record.process) else { continue }
                 updateEvidence(result.evidence, for: record.id)
                 if let current = records.first(where: { $0.id == record.id }) {
                     var healthy = current
@@ -354,6 +442,7 @@ public actor LocalStackCoordinator {
                     replace(healthy)
                 }
             } catch {
+                guard !stoppingProcesses.contains(record.process) else { continue }
                 guard let current = records.first(where: { $0.id == record.id }) else { continue }
                 var degraded = current
                 degraded.consecutiveFailures += 1
@@ -365,6 +454,21 @@ public actor LocalStackCoordinator {
                 }
             }
         }
+    }
+
+    private func isStoppingOrSuppressed(_ process: ProcessFingerprint) -> Bool {
+        stoppingProcesses.contains(process) || isDiscoverySuppressed(for: process)
+    }
+
+    private func isDiscoverySuppressed(for process: ProcessFingerprint) -> Bool {
+        if suppressedDiscoveryProcesses.contains(process) { return true }
+        guard inspector.fingerprint(for: process.pid) == process,
+              inspector.executableName(for: process.pid).lowercased() == "surge",
+              inspector.fingerprint(for: process.pid) == process else { return false }
+        // Reading local process metadata makes no network request. Unlike an
+        // ordinary rejected page, Surge must never be retried on a timer.
+        suppressedDiscoveryProcesses.insert(process)
+        return true
     }
 
     private func expireLeases() {
@@ -484,7 +588,7 @@ public actor LocalStackCoordinator {
     private func removeRecord(_ serviceID: UUID) {
         records.removeAll { $0.id == serviceID }
         leases = leases.filter { $0.value.serviceID != serviceID }
-        terminationTokens = terminationTokens.filter { $0.value.serviceID != serviceID }
+        terminationTokens = terminationTokens.filter { $0.value.record.id != serviceID || $0.value.isRetryAfterSignal }
     }
 
     private func replace(_ record: ServiceRecord) {

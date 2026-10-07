@@ -5,6 +5,11 @@ enum LSPanelLayout {
     static let height: CGFloat = 600
     static let horizontalInset: CGFloat = 20
     static let cardRadius: CGFloat = 18
+    static let serviceRowHeight: CGFloat = 44
+    static let serviceRowSpacing: CGFloat = 6
+    static let visibleServiceCount = 8
+    static let serviceViewportHeight = serviceRowHeight * CGFloat(visibleServiceCount)
+        + serviceRowSpacing * CGFloat(visibleServiceCount - 1)
 }
 
 extension Font {
@@ -20,6 +25,11 @@ extension Color {
     })
     static let lsHealthPending = Color.orange
     static let lsAccent = Color.lsHealth
+    static let lsDestructive = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(red: 1, green: 0.43, blue: 0.43, alpha: 1)
+            : NSColor(red: 0.78, green: 0.16, blue: 0.20, alpha: 1)
+    })
     static let lsSurface = Color(nsColor: .controlBackgroundColor)
 }
 

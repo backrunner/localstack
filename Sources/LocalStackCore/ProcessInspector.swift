@@ -17,6 +17,10 @@ public struct ProcessInspector: ProcessInspecting {
         ProcessSockets.listeners(pid: pid).contains { $0.port == port }
     }
 
+    public func listeningPorts(for pid: Int32) -> Set<Int> {
+        Set(ProcessSockets.listeners(pid: pid).map(\.port))
+    }
+
     public func executableName(for pid: Int32) -> String {
         var path = [CChar](repeating: 0, count: 4096)
         if proc_pidpath(pid, &path, UInt32(path.count)) <= 0 {

@@ -190,8 +190,17 @@ private final class LiveDiscovery: PortDiscovering, ProcessInspecting, Sendable 
         let process: ProcessFingerprint
         let ports: Set<Int>
         let internalPorts: Set<Int>
+        let executableName: String
+
+        init(process: ProcessFingerprint, ports: Set<Int>, internalPorts: Set<Int>, executableName: String = "DemoServer") {
+            self.process = process
+            self.ports = ports
+            self.internalPorts = internalPorts
+            self.executableName = executableName
+        }
     }
     let state: Mutex<Snapshot>
+    let nameReadCount = Mutex(0)
     init(_ snapshot: Snapshot) { state = Mutex(snapshot) }
     var currentUID: UInt32 { 501 }
     func listenCandidates() -> [PortCandidate] {
@@ -208,8 +217,85 @@ private final class LiveDiscovery: PortDiscovering, ProcessInspecting, Sendable 
     func isInternalDevelopmentEndpoint(_ candidate: PortCandidate, process: ProcessFingerprint) -> Bool {
         state.withLock { $0.process == process && candidate.pid == process.pid && $0.internalPorts.contains(candidate.port) }
     }
-    func executableName(for pid: Int32) -> String { "DemoServer" }
+    func executableName(for pid: Int32) -> String {
+        nameReadCount.withLock { $0 += 1 }
+        return state.withLock { $0.process.pid == pid ? $0.executableName : "未知进程" }
+    }
     func terminate(_ fingerprint: ProcessFingerprint, force: Bool) -> Bool { false }
+}
+
+@Test("Surge is excluded before HTTP access for its whole process lifetime", arguments: ["Surge", "surge", "SURGE"])
+func surgeSuppressionSurvivesListenerChanges(name: String) async {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: process, ports: [4173, 4174], internalPorts: [], executableName: name))
+    let probe = MockProbe(outcomes: [.success(mockEvidence())])
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    await coordinator.boot()
+    for _ in 0..<10 { await coordinator.refresh() }
+    #expect(await probe.callCount == 0)
+    #expect(live.nameReadCount.withLock { $0 } == 1)
+    #expect((await coordinator.list()).isEmpty)
+
+    // A closed listener and even changed executable metadata must not clear an
+    // exclusion while the same identified process is still alive.
+    live.state.withLock { $0 = .init(process: process, ports: [], internalPorts: []) }
+    await coordinator.refresh()
+    live.state.withLock { $0 = .init(process: process, ports: [4173], internalPorts: []) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 0)
+    #expect(live.nameReadCount.withLock { $0 } == 1)
+
+    let reused = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 101))
+    live.state.withLock { $0 = .init(process: reused, ports: [4173], internalPorts: []) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).first?.process == reused)
+}
+
+@Test("a new owner of a Surge port is probed immediately")
+func surgePortCanBeRediscovered() async {
+    let surge = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: surge, ports: [4173], internalPorts: [], executableName: "Surge"))
+    let probe = MockProbe(outcomes: [.success(mockEvidence())])
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    await coordinator.boot()
+    #expect(await probe.callCount == 0)
+    let replacement = ProcessFingerprint(pid: 43, uid: 501, startTime: Date(timeIntervalSince1970: 101))
+    live.state.withLock { $0 = .init(process: replacement, ports: [4173], internalPorts: []) }
+    await coordinator.refresh()
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).first?.process == replacement)
+}
+
+@Test("persisted Surge records are removed without a health probe", arguments: [true, false])
+func surgeHealthChecksAreSuppressed(hasDiscoveryCandidate: Bool) async throws {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: process, ports: [4173], internalPorts: [], executableName: "Surge"))
+    let store = testStore()
+    let record = ServiceRecord(port: 4173, url: mockEvidence().evidence.finalURL,
+        process: process, displayName: "Old entry", validation: mockEvidence().evidence, source: .discovered)
+    try await store.save([record])
+    let probe = MockProbe(outcomes: [])
+    let discovery: any PortDiscovering = hasDiscoveryCandidate ? live : MockDiscovery(candidates: [])
+    let coordinator = LocalStackCoordinator(store: store, discovery: discovery, inspector: live, probe: probe)
+    await coordinator.boot()
+    await coordinator.refresh()
+    #expect(await probe.callCount == 0)
+    #expect((await coordinator.list()).isEmpty)
+}
+
+@Test("explicit registration does not enable periodic health probes to Surge")
+func registeredSurgeHealthChecksAreSuppressed() async throws {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let live = LiveDiscovery(.init(process: process, ports: [4173], internalPorts: [], executableName: "Surge"))
+    let probe = MockProbe(outcomes: [.success(mockEvidence())])
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: MockDiscovery(candidates: []), inspector: live, probe: probe)
+    await coordinator.boot()
+    _ = try await coordinator.register(RegistrationRequest(pid: process.pid, port: 4173))
+    #expect(await probe.callCount == 1)
+    for _ in 0..<5 { await coordinator.refresh() }
+    #expect(await probe.callCount == 1)
+    #expect((await coordinator.list()).isEmpty)
 }
 
 @Test("internal exclusions disappear immediately when live evidence changes", arguments: ["metadata", "pid-reuse", "port-owner"])
@@ -296,6 +382,24 @@ func queuedProbeRejectsChangedProcess() async {
     await coordinator.refresh()
     #expect(await probe.callCount == 9)
     #expect((await coordinator.list()).count == 5)
+}
+
+@Test("queued probes stop when their process becomes Surge")
+func queuedProbeRejectsSurge() async {
+    let process = ProcessFingerprint(pid: 42, uid: 501, startTime: Date(timeIntervalSince1970: 100))
+    let ports: Set<Int> = [4173, 4174, 4175, 4176, 4177]
+    let live = LiveDiscovery(.init(process: process, ports: ports, internalPorts: []))
+    let probe = GatedDiscoveryProbe()
+    let coordinator = LocalStackCoordinator(store: testStore(), discovery: live, inspector: live, probe: probe)
+    let boot = Task { await coordinator.boot() }
+    await probe.waitForInitialBatch()
+    live.state.withLock { $0 = .init(process: process, ports: ports, internalPorts: [], executableName: "Surge") }
+    await probe.release()
+    await boot.value
+    #expect(await probe.callCount == 4)
+    #expect((await coordinator.list()).isEmpty)
+    await coordinator.refresh()
+    #expect(await probe.callCount == 4)
 }
 
 @Test("a transient discovered probe failure gets the three-failure grace period")

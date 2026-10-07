@@ -182,8 +182,12 @@ public struct TerminationPreview: Codable, Sendable {
     public let pid: Int32
     public let executableName: String
     public let expiresAt: Date
+    public let process: ProcessFingerprint?
+    public let listeningPorts: [Int]?
+    public let affectedServiceIDs: [UUID]?
 
-    public init(serviceID: UUID, token: String, displayName: String, url: URL, pid: Int32, executableName: String, expiresAt: Date) {
+    public init(serviceID: UUID, token: String, displayName: String, url: URL, pid: Int32, executableName: String, expiresAt: Date,
+                process: ProcessFingerprint? = nil, listeningPorts: [Int]? = nil, affectedServiceIDs: [UUID]? = nil) {
         self.serviceID = serviceID
         self.token = token
         self.displayName = displayName
@@ -191,6 +195,9 @@ public struct TerminationPreview: Codable, Sendable {
         self.pid = pid
         self.executableName = executableName
         self.expiresAt = expiresAt
+        self.process = process
+        self.listeningPorts = listeningPorts
+        self.affectedServiceIDs = affectedServiceIDs
     }
 }
 
@@ -198,11 +205,18 @@ public struct TerminationResult: Codable, Sendable {
     public let serviceID: UUID
     public let signal: Int32
     public let exited: Bool
+    public let listenersClosed: Bool?
+    public let removedServiceIDs: [UUID]?
+    public let forcePreview: TerminationPreview?
 
-    public init(serviceID: UUID, signal: Int32, exited: Bool) {
+    public init(serviceID: UUID, signal: Int32, exited: Bool, listenersClosed: Bool? = nil,
+                removedServiceIDs: [UUID]? = nil, forcePreview: TerminationPreview? = nil) {
         self.serviceID = serviceID
         self.signal = signal
         self.exited = exited
+        self.listenersClosed = listenersClosed
+        self.removedServiceIDs = removedServiceIDs
+        self.forcePreview = forcePreview
     }
 }
 

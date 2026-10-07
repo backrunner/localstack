@@ -22,6 +22,10 @@ final class AppModel {
 
     var services: [ServiceRecord] = []
     var isRefreshing = false
+    var isStopping = false
+    private var stoppingProcesses = Set<ProcessFingerprint>()
+    private var stoppedServiceIDs = Set<UUID>()
+    var terminationFailures: [String] = []
     var isConnected = false
     var message: UserMessage?
     var lastUpdated: Date?
@@ -132,6 +136,7 @@ final class AppModel {
     }
 
     func open(_ service: ServiceRecord) async {
+        guard !isStopping(service), !stoppedServiceIDs.contains(service.id) else { return }
         do {
             let url: URL
             switch backend {
@@ -142,6 +147,7 @@ final class AppModel {
             NSWorkspace.shared.open(url)
             await synchronizeServices()
         } catch let error as CoordinatorError {
+            guard !isStopping(service), !stoppedServiceIDs.contains(service.id) else { return }
             message = UserMessage(text: error.message)
             await refresh()
         } catch {
@@ -161,51 +167,74 @@ final class AppModel {
         await open(service)
     }
 
-    func prepareStop(_ service: ServiceRecord) async -> TerminationPreview? {
+    func prepareStops(_ services: [ServiceRecord]) async -> [TerminationPreview] {
+        let services = services.filter { !isStopping($0) && !stoppedServiceIDs.contains($0.id) }
         do {
-            switch backend {
-            case .embedded(let coordinator): return try await coordinator.prepareTermination(serviceID: service.id)
-            case .remote(let client): return try await client.prepareTermination(serviceID: service.id)
-            case nil: throw CoordinatorError(.internalError, "Coordinator 尚未启动")
+            return try await ServiceTerminationBatch.prepare(services: services) { [self] id in
+                try await prepareTermination(serviceID: id)
             }
         } catch let error as CoordinatorError {
+            guard !services.allSatisfy({ isStopping($0) || stoppedServiceIDs.contains($0.id) }) else { return [] }
             message = UserMessage(text: error.message)
             await refresh()
-            return nil
+            return []
         } catch {
             message = UserMessage(text: error.localizedDescription)
-            return nil
+            return []
         }
     }
 
-    func stop(_ preview: TerminationPreview, force: Bool = false) async -> TerminationPreview? {
-        do {
-            let result: TerminationResult
-            switch backend {
-            case .embedded(let coordinator):
-                result = try await coordinator.terminate(serviceID: preview.serviceID, token: preview.token, force: force)
-            case .remote(let client):
-                result = try await client.terminate(serviceID: preview.serviceID, token: preview.token, force: force)
-            case nil:
-                throw CoordinatorError(.internalError, "Coordinator 尚未启动")
-            }
-            if !result.exited && !force {
-                await synchronizeServices()
+    func stop(_ previews: [TerminationPreview], force: Bool = false) async -> [TerminationPreview] {
+        guard !isStopping else { return [] }
+        isStopping = true
+        stoppingProcesses = Set(previews.compactMap { preview in
+            preview.process ?? services.first { $0.id == preview.serviceID }?.process
+        })
+        defer { isStopping = false; stoppingProcesses.removeAll() }
+        let outcome = await ServiceTerminationBatch.stop(previews: previews) { [self] preview in
+            try await performStop(preview, force: force)
+        }
+        await synchronizeServices()
+        terminationFailures = outcome.failures
+        // A force confirmation also reports partial failures. Do not present an
+        // alert at the same time and displace that confirmation.
+        if !outcome.failures.isEmpty && outcome.forcePreviews.isEmpty {
+            message = UserMessage(text: outcome.failures.joined(separator: "\n"))
+        }
+        return outcome.forcePreviews
+    }
+
+    private func performStop(_ preview: TerminationPreview, force: Bool) async throws -> TerminationPreview? {
+        let process = preview.process ?? services.first { $0.id == preview.serviceID }?.process
+        let relatedIDs = Set(services.filter { process != nil && $0.process == process }.map(\.id))
+            .union(preview.affectedServiceIDs ?? [preview.serviceID])
+        let result: TerminationResult
+        switch backend {
+        case .embedded(let coordinator):
+            result = try await coordinator.terminate(serviceID: preview.serviceID, token: preview.token, force: force)
+        case .remote(let client):
+            result = try await client.terminate(serviceID: preview.serviceID, token: preview.token, force: force)
+        case nil:
+            throw CoordinatorError(.internalError, "Coordinator 尚未启动")
+        }
+        let stopped = result.exited || result.listenersClosed == true
+        let removedIDs = Set(result.removedServiceIDs ?? []).union(stopped ? relatedIDs : [])
+        if !removedIDs.isEmpty {
+            stoppedServiceIDs.formUnion(removedIDs)
+            services.removeAll { removedIDs.contains($0.id) }
+        }
+        if stopped {
+            return nil
+        } else {
+            if !force {
+                if let forcePreview = result.forcePreview { return forcePreview }
                 return try await prepareTermination(serviceID: preview.serviceID)
-            } else if !result.exited {
-                message = UserMessage(text: "已发送强制停止信号，但进程仍在运行。")
             }
-            await synchronizeServices()
-            return nil
-        } catch let error as CoordinatorError {
-            message = UserMessage(text: error.message)
-            await synchronizeServices()
-            return nil
-        } catch {
-            message = UserMessage(text: error.localizedDescription)
-            return nil
+            throw CoordinatorError(.terminationRejected, "已发送强制停止信号，但进程仍在运行。")
         }
     }
+
+    func isStopping(_ service: ServiceRecord) -> Bool { stoppingProcesses.contains(service.process) }
 
     private func prepareTermination(serviceID: UUID) async throws -> TerminationPreview {
         switch backend {
@@ -217,11 +246,15 @@ final class AppModel {
 
     private func synchronizeServices() async {
         do {
+            let latest: [ServiceRecord]
             switch backend {
-            case .embedded(let coordinator): services = await coordinator.list()
-            case .remote(let client): services = try await client.list()
+            case .embedded(let coordinator): latest = await coordinator.list()
+            case .remote(let client): latest = try await client.list()
             case nil: return
             }
+            // An observation request may have captured its reply before a stop.
+            // Never reinsert IDs explicitly removed by a successful stop result.
+            services = latest.filter { !stoppedServiceIDs.contains($0.id) }
             lastUpdated = .now
             isConnected = true
         } catch {
