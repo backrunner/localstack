@@ -117,11 +117,14 @@ public actor LocalStackCoordinator {
         guard inspector.ownsPort(request.port, pid: request.pid) else {
             throw CoordinatorError(.portUnavailable, "PID \(request.pid) 当前没有监听端口 \(request.port)")
         }
-        let targetURL = try normalizedURL(request.url, port: request.port)
+        let requestedURL = try normalizedURL(request.url, port: request.port)
+        guard let targetURL = inspector.ownedLoopbackURL(requestedURL, pid: request.pid) else {
+            throw CoordinatorError(.portUnavailable, "PID \(request.pid) 没有监听请求中的 loopback 地址")
+        }
         let result = try await probe.probe(targetURL)
         guard let currentProcess = inspector.fingerprint(for: request.pid), currentProcess == process,
               !stoppingProcesses.contains(process),
-              inspector.ownsPort(request.port, pid: request.pid) else {
+              inspector.ownedLoopbackURL(result.evidence.finalURL, pid: request.pid) != nil else {
             throw CoordinatorError(.staleProcess, "服务在页面验证期间已退出或端口已变化")
         }
         let service = upsert(
@@ -175,17 +178,18 @@ public actor LocalStackCoordinator {
             throw CoordinatorError(.notFound, "服务不存在")
         }
         let currentProcess = try validateProcess(pid: record.process.pid)
-        guard currentProcess == record.process, inspector.ownsPort(record.port, pid: record.process.pid) else {
+        guard currentProcess == record.process,
+              let targetURL = inspector.ownedLoopbackURL(record.url, pid: record.process.pid) else {
             removeRecord(serviceID)
             try await persist()
             throw CoordinatorError(.staleProcess, "服务进程已变化，已刷新列表")
         }
-        let result = try await probe.probe(record.url)
+        let result = try await probe.probe(targetURL)
         guard let current = records.first(where: { $0.id == serviceID }), current.process == currentProcess else {
             throw CoordinatorError(.staleProcess, "服务在打开前发生变化")
         }
         guard let verifiedProcess = inspector.fingerprint(for: current.process.pid), verifiedProcess == current.process,
-              inspector.ownsPort(current.port, pid: current.process.pid) else {
+              inspector.ownedLoopbackURL(result.evidence.finalURL, pid: current.process.pid) != nil else {
             removeRecord(serviceID)
             try await persist()
             throw CoordinatorError(.staleProcess, "服务在页面验证期间发生变化")
@@ -205,7 +209,7 @@ public actor LocalStackCoordinator {
         }
         pruneTerminationTokens()
         guard let current = inspector.fingerprint(for: record.process.pid), current == record.process,
-              inspector.ownsPort(record.port, pid: record.process.pid) else {
+              inspector.ownedLoopbackURL(record.url, pid: record.process.pid) != nil else {
             throw CoordinatorError(.staleProcess, "服务进程已变化，无法终止")
         }
         let ports = listeningPorts(for: record.process)
@@ -258,7 +262,7 @@ public actor LocalStackCoordinator {
         if stored.isRetryAfterSignal && !ports.contains(where: { inspector.ownsPort($0, pid: record.process.pid) }) {
             return try await completeTermination(stored, force: force, exited: false)
         }
-        guard stored.isRetryAfterSignal || inspector.ownsPort(record.port, pid: record.process.pid) else {
+        guard stored.isRetryAfterSignal || inspector.ownedLoopbackURL(record.url, pid: record.process.pid) != nil else {
             throw CoordinatorError(.terminationRejected, "进程或端口已变化，未执行停止")
         }
         guard !isProtectedProcess(record.process.pid) else {
@@ -328,13 +332,14 @@ public actor LocalStackCoordinator {
             guard let process = inspector.fingerprint(for: candidate.pid), process.uid == inspector.currentUID,
                   !stoppingProcesses.contains(process),
                   !isDiscoverySuppressed(for: process),
-                  inspector.ownsPort(candidate.port, pid: candidate.pid),
+                  inspector.ownedLoopbackURL(candidate.url, pid: candidate.pid) != nil,
                   !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else { continue }
             let candidateKey = key(port: candidate.port, process: process)
             presentKeys.insert(candidateKey)
             let target = DiscoveryProbeBackoff.Target(candidate: candidate, process: process)
             guard probeTargets.insert(target).inserted else { continue }
-            if let existingIndex = records.firstIndex(where: { key(for: $0) == candidateKey }) {
+            if let existingIndex = records.firstIndex(where: { key(for: $0) == candidateKey }),
+               inspector.ownedLoopbackURL(records[existingIndex].url, pid: candidate.pid) != nil {
                 records[existingIndex].sources.insert(.discovered)
                 records[existingIndex].lastSeenAt = .now
                 continue
@@ -366,7 +371,7 @@ public actor LocalStackCoordinator {
                 guard let currentProcess = inspector.fingerprint(for: result.candidate.pid), currentProcess == result.process,
                       !stoppingProcesses.contains(currentProcess),
                       !isDiscoverySuppressed(for: currentProcess),
-                      inspector.ownsPort(result.candidate.port, pid: result.candidate.pid),
+                      inspector.ownedLoopbackURL(page.evidence.finalURL, pid: result.candidate.pid) != nil,
                       !inspector.isInternalDevelopmentEndpoint(result.candidate, process: result.process) else {
                     continue
                 }
@@ -405,7 +410,7 @@ public actor LocalStackCoordinator {
             // while earlier probes occupy the concurrency slots.
             guard !(await isStoppingOrSuppressed(process)),
                   inspector.fingerprint(for: candidate.pid) == process,
-                  inspector.ownsPort(candidate.port, pid: candidate.pid),
+                  inspector.ownedLoopbackURL(candidate.url, pid: candidate.pid) != nil,
                   !inspector.isInternalDevelopmentEndpoint(candidate, process: process) else {
                 return ScanProbeResult(candidate: candidate, process: process,
                     result: .failure(CoordinatorError(.staleProcess, "候选进程或监听端点已变化")))
@@ -425,13 +430,18 @@ public actor LocalStackCoordinator {
             guard !stoppingProcesses.contains(record.process) else { continue }
             guard let currentProcess = inspector.fingerprint(for: record.process.pid), currentProcess == record.process,
                   !isDiscoverySuppressed(for: currentProcess),
-                  inspector.ownsPort(record.port, pid: record.process.pid) else {
+                  let targetURL = inspector.ownedLoopbackURL(record.url, pid: record.process.pid) else {
                 removeRecord(record.id)
                 continue
             }
             do {
-                let result = try await probe.probe(record.url)
+                let result = try await probe.probe(targetURL)
                 guard !stoppingProcesses.contains(record.process) else { continue }
+                guard inspector.fingerprint(for: record.process.pid) == record.process,
+                      inspector.ownedLoopbackURL(result.evidence.finalURL, pid: record.process.pid) != nil else {
+                    removeRecord(record.id)
+                    continue
+                }
                 updateEvidence(result.evidence, for: record.id)
                 if let current = records.first(where: { $0.id == record.id }) {
                     var healthy = current
@@ -496,7 +506,7 @@ public actor LocalStackCoordinator {
     }
 
     private func normalizedURL(_ requested: URL?, port: Int) throws -> URL {
-        let url = requested ?? URL(string: "http://127.0.0.1:\(port)/")!
+        let url = requested ?? URL(string: "http://localhost:\(port)/")!
         guard let host = url.host?.lowercased(), ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host),
               url.scheme?.lowercased() == "http",
               url.user == nil, url.password == nil,
@@ -518,14 +528,14 @@ public actor LocalStackCoordinator {
     ) -> ServiceRecord {
         let trimmedName = displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedName = trimmedName?.isEmpty == false ? trimmedName : nil
-        let endpointKey = "127.0.0.1:\(port)"
+        let endpointKey = ServiceRecord.endpointKey(url: url, port: port)
         let conflictingIDs = records
             .filter { $0.endpointKey == endpointKey && $0.process != process }
             .map(\.id)
         for serviceID in conflictingIDs {
             removeRecord(serviceID)
         }
-        if let index = records.firstIndex(where: { $0.endpointKey == endpointKey && $0.process == process }) {
+        if let index = records.firstIndex(where: { $0.port == port && $0.process == process }) {
             var record = records[index]
             record.url = url
             record.sources.insert(source)

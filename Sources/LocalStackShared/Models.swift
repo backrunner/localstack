@@ -98,7 +98,11 @@ public struct ServiceRecord: Codable, Hashable, Identifiable, Sendable {
     }
 
     public var endpointKey: String {
-        "127.0.0.1:\(port)"
+        Self.endpointKey(url: url, port: port)
+    }
+
+    public static func endpointKey(url: URL, port: Int) -> String {
+        "\(url.host?.contains(":") == true ? "[::1]" : "127.0.0.1"):\(port)"
     }
 
     public var sourceLabel: String {

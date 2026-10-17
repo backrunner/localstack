@@ -6,6 +6,14 @@ enum ProcessSockets {
     struct Listener {
         let port: Int
         let loopbackURL: URL?
+        var acceptsIPv4 = false
+
+        func accepts(host: String) -> Bool {
+            guard let boundHost = loopbackURL?.host else { return false }
+            if host == "127.0.0.1" { return boundHost == host || acceptsIPv4 }
+            return host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")) ==
+                boundHost.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        }
     }
 
     static func currentUserPIDs() -> [Int32] {
@@ -40,7 +48,11 @@ enum ProcessSockets {
                 let loopback = bytes.prefix(15).allSatisfy { $0 == 0 } && bytes.last == 1
                 host = unspecified || loopback ? "[::1]" : nil
             } else { continue }
-            result.append(Listener(port: port, loopbackURL: host.flatMap { URL(string: "http://\($0):\(port)/") }))
+            let dualStack = info.psi.soi_family == AF_INET6 &&
+                withUnsafeBytes(of: &address.insi_laddr.ina_6, { $0.allSatisfy { $0 == 0 } }) &&
+                address.insi_vflag & UInt8(INI_IPV4) != 0
+            result.append(Listener(port: port, loopbackURL: host.flatMap { URL(string: "http://\($0):\(port)/") },
+                acceptsIPv4: dualStack))
         }
         return result
     }

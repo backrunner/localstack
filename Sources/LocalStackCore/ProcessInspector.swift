@@ -17,6 +17,23 @@ public struct ProcessInspector: ProcessInspecting {
         ProcessSockets.listeners(pid: pid).contains { $0.port == port }
     }
 
+    /// Pin localhost to an address actually served by this process. A listener
+    /// with the same port in the other family is not ownership evidence.
+    public func ownedLoopbackURL(_ url: URL, pid: Int32) -> URL? {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme?.lowercased() == "http", components.user == nil, components.password == nil,
+              let host = components.host?.lowercased(),
+              ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host) else { return nil }
+        let listeners = ProcessSockets.listeners(pid: pid).filter { $0.port == (url.port ?? 80) && $0.loopbackURL != nil }
+        if host == "localhost" {
+            if listeners.contains(where: { $0.accepts(host: "127.0.0.1") }) { components.host = "127.0.0.1" }
+            else if listeners.contains(where: { $0.accepts(host: "::1") }) { components.host = "[::1]" }
+            else { return nil }
+            return components.url
+        }
+        return listeners.contains(where: { $0.accepts(host: host) }) ? url : nil
+    }
+
     public func listeningPorts(for pid: Int32) -> Set<Int> {
         Set(ProcessSockets.listeners(pid: pid).map(\.port))
     }
