@@ -13,6 +13,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  integrations:
+    name: CLI and SDK (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: packages/unplugin-localstack/package-lock.json
+      - name: Test CLI and MCP
+        if: matrix.node == '22'
+        run: cargo test --locked --manifest-path cli/Cargo.toml
+      - name: Test SDK and Vite lifecycle
+        run: |
+          npm --prefix packages/unplugin-localstack ci
+          npm --prefix packages/unplugin-localstack test
+
   package:
     runs-on: macos-26
     timeout-minutes: 30
