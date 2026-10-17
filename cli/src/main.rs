@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::env;
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -526,9 +526,19 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<()> {
     let mode = fs::metadata(path)
         .map(|metadata| metadata.permissions().mode() & 0o777)
         .unwrap_or(0o600);
-    fs::write(&temp, data)?;
-    fs::set_permissions(&temp, fs::Permissions::from_mode(mode))?;
-    if let Err(error) = fs::rename(&temp, path) {
+    // Never follow a preexisting temporary symlink, or briefly expose config
+    // credentials with default umask permissions before a later chmod.
+    let mut staged = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(mode)
+        .open(&temp)?;
+    let result = (|| -> std::io::Result<()> {
+        staged.write_all(data)?;
+        staged.sync_all()?;
+        fs::rename(&temp, path)
+    })();
+    if let Err(error) = result {
         let _ = fs::remove_file(&temp);
         return Err(error.into());
     }
@@ -585,5 +595,25 @@ mod tests {
         let loaded = read_toml_or_empty(&path).unwrap();
         assert!(loaded.get("mcp_servers").is_some());
         fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn atomic_config_write_never_follows_a_preexisting_temporary_symlink() {
+        let directory =
+            std::env::temp_dir().join(format!("localstack-config-safety-{}", std::process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        let config = directory.join("config.toml");
+        let unrelated = directory.join("unrelated");
+        let temporary = directory.join(format!(".config.toml.tmp-{}", std::process::id()));
+        fs::write(&config, b"original").unwrap();
+        fs::write(&unrelated, b"keep me").unwrap();
+        std::os::unix::fs::symlink(&unrelated, &temporary).unwrap();
+        let result = atomic_write(&config, b"replacement");
+        let config_bytes = fs::read(&config).unwrap();
+        let unrelated_bytes = fs::read(&unrelated).unwrap();
+        fs::remove_dir_all(&directory).unwrap();
+        assert!(result.is_err());
+        assert_eq!(config_bytes, b"original");
+        assert_eq!(unrelated_bytes, b"keep me");
     }
 }

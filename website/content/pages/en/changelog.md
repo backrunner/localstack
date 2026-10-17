@@ -16,6 +16,7 @@ The first stable release keeps the full, free GitHub DMG experience: native menu
 - Resolve `localhost` to the address owned by the claimed process, including IPv6-only and dual-stack listeners.
 - Correct the row menu's Open action in multi-select mode.
 - Cancel completed or rejected updater HTTP tasks explicitly.
+- Refuse preexisting temporary files when writing MCP configuration, and set permissions before writing credentials.
 - Support MCP `ping` health checks; test the real stdio handshake, errors, and tool list. CLI version is now 0.1.1.
 - Add real Unix-socket SDK lifecycle and Vite lease-recovery tests, with CLI and Node.js 20/22 checks in CI.
 
