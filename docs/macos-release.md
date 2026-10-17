@@ -62,7 +62,7 @@ In-app update behavior and stable/beta channel rules are documented in
 
 ## Local commands
 
-Local builds default to the version and build number in `project.yml`. They use
+Local builds default to `LOCALSTACK_RELEASE_VERSION` and `CURRENT_PROJECT_VERSION` in `project.yml` (falling back to the numeric `MARKETING_VERSION` for older project files). Xcode keeps a numeric marketing version; the full prerelease string is separate. They use
 an available Developer ID certificate, falling back to ad-hoc signing if none is
 available. Select ad-hoc signing explicitly with:
 
@@ -127,3 +127,7 @@ Stapling retries briefly for ticket propagation without resubmitting the binary.
 No release artifacts are uploaded unless all signing, notarization, ticket,
 Gatekeeper, and mounted-image checks pass. A clean Mac installation smoke test
 is still useful before publishing the draft.
+
+## Store distribution
+
+This pipeline is for GitHub Developer ID distribution. It does not produce an App Store archive, and notarization does not constitute store approval. See [Mac App Store readiness](app-store-readiness.md) before attempting a store submission. The app can remain free in either channel, but store distribution requires resolving the documented sandbox and updater blockers.

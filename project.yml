@@ -8,8 +8,9 @@ settings:
   base:
     SWIFT_VERSION: 6.0
     MACOSX_DEPLOYMENT_TARGET: 15.0
-    MARKETING_VERSION: 0.2.2
-    CURRENT_PROJECT_VERSION: 4
+    MARKETING_VERSION: 0.2.3
+    LOCALSTACK_RELEASE_VERSION: 0.2.3-beta.3
+    CURRENT_PROJECT_VERSION: 20261018.3
     CODE_SIGN_STYLE: Automatic
 targets:
   LocalStackShared:
@@ -62,6 +63,7 @@ targets:
         CFBundleIconFile: AppIcon
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LocalStackReleaseVersion: "$(LOCALSTACK_RELEASE_VERSION)"
         LSUIElement: true
         CFBundleURLTypes:
           - CFBundleURLName: LocalStack Service Deep Link

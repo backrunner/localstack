@@ -33,5 +33,7 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>LocalStackReleaseVersion</key>
+	<string>$(LOCALSTACK_RELEASE_VERSION)</string>
 </dict>
 </plist>

@@ -2,6 +2,7 @@
 # Shared by the packaging and verification entry points (all run from the repo root).
 release_fail() { print -u2 -- "Error: $*"; exit 1; }
 
+VERSION="${VERSION:-$(sed -n 's/^    LOCALSTACK_RELEASE_VERSION: //p' project.yml)}"
 VERSION="${VERSION:-$(sed -n 's/^    MARKETING_VERSION: //p' project.yml)}"
 BUILD_NUMBER="${BUILD_NUMBER:-$(sed -n 's/^    CURRENT_PROJECT_VERSION: //p' project.yml)}"
 ARCHS="${ARCHS:-arm64 x86_64}"
