@@ -9,7 +9,7 @@ use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Parser, Debug)]
 #[command(name = "localstack", version = VERSION, about = "管理本机可打开的开发服务，并提供 LocalStack MCP 服务")]
@@ -237,6 +237,7 @@ fn handle_mcp_request(request: &Value) -> Value {
     let id = request.get("id").cloned().unwrap_or(Value::Null);
     let method = request.get("method").and_then(Value::as_str).unwrap_or("");
     match method {
+        "ping" => json!({"jsonrpc": "2.0", "id": id, "result": {}}),
         "initialize" => json!({
             "jsonrpc": "2.0", "id": id,
             "result": {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}, "serverInfo": {"name": "localstack", "version": VERSION}}
