@@ -4,7 +4,24 @@ description: 查看 LocalStack 的公开 Beta 版本和安装更新说明。
 image: /brand/social.png
 ---
 
-LocalStack 当前处于 Beta 阶段。完整发布内容、DMG 与校验文件以 [GitHub Releases](https://github.com/backrunner/localstack/releases) 为准。
+LocalStack 0.2.3 是首个正式版本。完整发布内容、DMG 与校验文件以 [GitHub Releases](https://github.com/backrunner/localstack/releases) 为准。
+
+## 0.2.3
+
+2026 年 10 月 18 日 · 正式版
+
+首个正式版本保留完整、免费的 GitHub DMG 体验：原生菜单栏、HTML 页面验证、紧凑列表、批量停止和签名自动更新。
+
+- 按实际监听地址、PID 和端口验证归属；IPv4 与 IPv6 不同进程共用端口时分别保留，停止其中一个不影响另一个
+- 将 `localhost` 固定到声明进程实际监听的回环地址，支持 IPv6-only 和双栈监听
+- 修正多选模式下服务菜单的「打开页面」动作
+- 更新器在下载完成、取消或拒绝响应后显式释放 HTTP 任务
+- 补齐 MCP `ping`，实测 stdio 握手、错误响应和工具列表；CLI 更新至 0.1.1
+- 新增真实 Unix socket 的 SDK 生命周期和 Vite lease 恢复测试，并在 CI 检查 CLI 与 Node.js 20/22
+
+继续使用 Developer ID 签名、Apple 公证的 GitHub DMG 分发；独立 CLI 与 Widget 扩展仍是源码目标。验证证据与限制见 [稳定性评审](https://github.com/backrunner/localstack/blob/main/docs/stable-readiness.md)。
+
+[下载正式版](https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg) · [完整发布记录](https://github.com/backrunner/localstack/releases/tag/v0.2.3)
 
 ## 0.2.3-beta.3
 

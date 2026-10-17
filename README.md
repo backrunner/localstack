@@ -9,7 +9,7 @@
 <p align="center"><strong>Your localhost. All in one place.</strong><br />A quiet, native macOS menu bar for your local development servers.</p>
 
 <p align="center">
-  <a href="https://github.com/backrunner/localstack/releases"><img src="https://img.shields.io/github/v/release/backrunner/localstack?include_prereleases&amp;style=flat-square&amp;color=91f4cc&amp;label=release" alt="Latest release" /></a>
+  <a href="https://github.com/backrunner/localstack/releases"><img src="https://img.shields.io/github/v/release/backrunner/localstack?style=flat-square&amp;color=91f4cc&amp;label=release" alt="Latest release" /></a>
   <img src="https://img.shields.io/badge/macOS-15%2B-142f32?style=flat-square" alt="macOS 15 or newer" />
   <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-universal-142f32?style=flat-square" alt="Apple Silicon and Intel" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-142f32?style=flat-square" alt="MIT license" /></a>
@@ -17,7 +17,7 @@
 
 <p align="center">
   <a href="https://localstack.pwp.sh"><strong>Website</strong></a> ·
-  <a href="https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg"><strong>Download for macOS</strong></a> ·
+  <a href="https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg"><strong>Download for macOS</strong></a> ·
   <a href="https://localstack.pwp.sh/docs">Documentation</a> ·
   <a href="https://github.com/backrunner/localstack/issues">Report an issue</a>
 </p>
@@ -39,7 +39,7 @@ LocalStack finds the web pages running on your Mac, checks that they are reachab
 
 ## Get started
 
-1. **[Download LocalStack 0.2.3-beta.3](https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg)** — macOS 15+, Apple Silicon and Intel. Currently in Beta.
+1. **[Download LocalStack 0.2.3](https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg)** — macOS 15+, Apple Silicon and Intel. Stable release.
 2. Open the DMG, install LocalStack in Applications, and launch it.
 3. Start your development server as usual. Click the stack icon in the menu bar to find your site.
 

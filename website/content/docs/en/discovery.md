@@ -16,6 +16,10 @@ LocalStack lists local development pages that you can open in a browser. Both di
 
 The discovery code reads process and socket metadata directly; it does not launch `lsof` for every port. An HTTP server that returns HTML can be discovered regardless of framework. JSON-only APIs, databases, and other TCP services stay out of the list.
 
+## IPv4 and IPv6 ownership
+
+The Coordinator verifies the listening address, not just the port number. Separate IPv4 and IPv6 processes can share a port and appear as separate services. A `localhost` registration is pinned to a numeric loopback address actually served by the claimed process, preserving its path and query. Servers that restrict the HTTP Host header must allow that loopback address.
+
 ## Quiet exclusions
 
 When the executable is identified as **Surge**, automatic page probes and health checks remain suppressed for that exact process lifetime. Suppression is tied to PID, user, and process start time. It survives a temporary listener disappearance and ends when that process exits; a new owner of the port is evaluated normally.

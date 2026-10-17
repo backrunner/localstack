@@ -9,9 +9,9 @@ LocalStack 是一个原生 macOS 菜单栏工具：把正在运行、能够在�
 
 ## 下载 LocalStack
 
-当前公开版本为 **0.2.3-beta.3**，支持 **macOS 15 或更新版本**。同一个 DMG 包含 Apple Silicon 与 Intel 通用应用。使用应用不需要安装 Xcode、Rust 或 Node.js。
+当前公开版本为 **0.2.3**，支持 **macOS 15 或更新版本**。同一个 DMG 包含 Apple Silicon 与 Intel 通用应用。使用应用不需要安装 Xcode、Rust 或 Node.js。
 
-[下载 macOS 通用版 DMG](https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg) · [查看发布记录与校验文件](https://github.com/backrunner/localstack/releases/tag/v0.2.3-beta.3)
+[下载 macOS 通用版 DMG](https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg) · [查看发布记录与校验文件](https://github.com/backrunner/localstack/releases/tag/v0.2.3)
 
 1. 下载并打开 DMG。
 2. 将 LocalStack 安装到「应用程序」，然后启动。也可以在 DMG 内双击应用，使用内置安装器。

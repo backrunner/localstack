@@ -110,7 +110,7 @@ test('English docs, locale links and current distribution details', async ({ pag
   await page.goto('/en');
   await page.waitForLoadState('networkidle');
   await expect(page.locator('h1')).toContainText('Your localhost');
-  await expect(page.getByRole('link', { name: 'Download for macOS' }).first()).toHaveAttribute('href', /v0\.2\.3-beta\.3/);
+  await expect(page.getByRole('link', { name: 'Download for macOS' }).first()).toHaveAttribute('href', /v0\.2\.3\/LocalStack-0\.2\.3\.dmg$/);
   await page.screenshot({ path: 'test-results/home-en-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');

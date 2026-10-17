@@ -44,3 +44,7 @@ Apple's [App Review Guidelines](https://developer.apple.com/app-store/review/gui
 `0.2.3-beta.3` remains the free GitHub direct-download channel. Its website documents compact service rows, batch stopping, lifetime Surge exclusion, internal workerd filtering, the separate CLI/Widget targets, and this readiness status. The website uses svedocs 0.3.0 with SvelteKit 3. It does not present an App Store badge or claim approval.
 
 Release acceptance requires the Swift and packaging tests, universal app/DMG signing, Apple notarization and stapled tickets, Gatekeeper checks, update-manifest/checksum verification, and the existing real update-install smoke test in GitHub Actions. Website acceptance requires type/content checks, production build, browser checks for both locales and mobile navigation, and live endpoint checks after deployment. Passing these checks does not resolve the store blockers above.
+
+## Distribution decision after review
+
+The project keeps the full feature set and publishes 0.2.3 through the free, signed and notarized GitHub DMG channel. Mac App Store work is deferred. The potential store path above is background analysis, not a planned delivery commitment. See [the stable readiness review](stable-readiness.md).

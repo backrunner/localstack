@@ -114,7 +114,7 @@ export default defineConfig({
         name: 'LocalStack', applicationCategory: 'DeveloperApplication', operatingSystem: 'macOS 15+',
         description: 'A native macOS menu bar app for discovering and managing local development sites.',
         url: 'https://localstack.pwp.sh',
-        downloadUrl: 'https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg',
+        downloadUrl: 'https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg',
         license: 'https://github.com/backrunner/localstack/blob/main/LICENSE',
         offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' }
       }]

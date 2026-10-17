@@ -7,6 +7,8 @@ image: /brand/social.png
 
 LocalStack is free and MIT licensed. Its supported release is a universal, Developer ID-signed and Apple-notarized **GitHub DMG** for macOS 15+. It includes the menu bar app and embedded Coordinator. The Rust CLI and Widget extension are separate source targets.
 
+The stable release continues through GitHub DMG so that automatic discovery and process management remain available. Mac App Store distribution is deferred.
+
 ## Mac App Store status
 
 As of October 18, 2026, LocalStack has **not been submitted to or approved for the Mac App Store**. Free pricing is possible, but the current direct-download build is not ready for submission.

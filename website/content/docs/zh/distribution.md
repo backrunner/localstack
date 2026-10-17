@@ -7,6 +7,8 @@ image: /brand/social.png
 
 LocalStack 免费、采用 MIT 许可证。当前通过 **GitHub DMG** 分发，支持 macOS 15+、Apple Silicon 与 Intel，使用 Developer ID 签名与 Apple 公证。安装包包含菜单栏应用及内嵌 Coordinator；Rust CLI 和 Widget 扩展是独立源码目标。
 
+正式版继续通过 GitHub DMG 分发，保留自动发现与进程管理的完整功能，暂不推进 Mac App Store 上架。
+
 ## Mac App Store 状态
 
 截至 2026 年 10 月 18 日，LocalStack **尚未提交或通过 Mac App Store 审核**。可以选择免费定价，但当前直接下载构建尚不满足提交条件。

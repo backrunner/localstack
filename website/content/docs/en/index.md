@@ -9,9 +9,9 @@ LocalStack is a free, MIT-licensed macOS menu bar app for local development site
 
 ## Download LocalStack
 
-The current release is **0.2.3-beta.3**, for **macOS 15 or newer**. The universal DMG supports Apple Silicon and Intel. Xcode, Rust, and Node.js are not required to run the app.
+The current release is **0.2.3**, for **macOS 15 or newer**. The universal DMG supports Apple Silicon and Intel. Xcode, Rust, and Node.js are not required to run the app.
 
-[Download the universal macOS DMG](https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg) · [Release notes and checksums](https://github.com/backrunner/localstack/releases/tag/v0.2.3-beta.3)
+[Download the universal macOS DMG](https://github.com/backrunner/localstack/releases/download/v0.2.3/LocalStack-0.2.3.dmg) · [Release notes and checksums](https://github.com/backrunner/localstack/releases/tag/v0.2.3)
 
 1. Download and open the DMG.
 2. Move LocalStack to Applications and launch it, or double-click the app in the DMG to use its installer.
