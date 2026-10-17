@@ -1,126 +1,138 @@
-# LocalStack
+<p align="center">
+  <a href="https://localstack.pwp.sh">
+    <img src="Resources/Brand/StackMark.svg" width="76" height="76" alt="LocalStack" />
+  </a>
+</p>
 
-**A focused macOS control surface for local web development.**
+<h1 align="center">LocalStack</h1>
 
-LocalStack finds the HTML services running on your Mac, verifies that each page is reachable, and puts the useful actions in one quiet menu bar panel. Register a dev server from an SDK, Vite plugin, CLI, or MCP and it appears alongside automatically discovered services.
+<p align="center"><strong>Your localhost. All in one place.</strong><br />A quiet, native macOS menu bar for your local development servers.</p>
 
-![LocalStack menu bar panel](Resources/Brand/TrayTemplate.png)
+<p align="center">
+  <a href="https://github.com/backrunner/localstack/releases"><img src="https://img.shields.io/github/v/release/backrunner/localstack?include_prereleases&amp;style=flat-square&amp;color=91f4cc&amp;label=release" alt="Latest release" /></a>
+  <img src="https://img.shields.io/badge/macOS-15%2B-142f32?style=flat-square" alt="macOS 15 or newer" />
+  <img src="https://img.shields.io/badge/Apple_Silicon_%26_Intel-universal-142f32?style=flat-square" alt="Apple Silicon and Intel" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-142f32?style=flat-square" alt="MIT license" /></a>
+</p>
 
-## Why LocalStack
+<p align="center">
+  <a href="https://localstack.pwp.sh"><strong>Website</strong></a> ·
+  <a href="https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg"><strong>Download for macOS</strong></a> ·
+  <a href="https://localstack.pwp.sh/docs">Documentation</a> ·
+  <a href="https://github.com/backrunner/localstack/issues">Report an issue</a>
+</p>
 
-- **Only useful pages** — loopback listeners are shown after an independent HTML probe. JSON APIs, databases, and opaque TCP ports stay out of the default list.
-- **One local source of truth** — the Coordinator owns discovery, registration, health checks, persistence, and process safety.
-- **Native macOS experience** — SwiftUI/AppKit menu bar app, Liquid Glass presentation, dark and light appearances, keyboard shortcuts, WidgetKit snapshots, and `localstack://` deep links.
-- **Safe process actions** — stopping a service requires a fresh PID, user, start-time, and port validation. The normal action sends `SIGTERM`; force is explicit.
-- **Automation friendly** — Unix-socket JSON-RPC powers the app, Rust CLI, MCP server, TypeScript SDK, and Vite integration.
+<a href="https://localstack.pwp.sh"><img src="Resources/Brand/READMEHero.png" alt="LocalStack — your localhost, all in one place. Real macOS app preview with sample services." width="1200" /></a>
 
-## Project layout
+LocalStack finds the web pages running on your Mac, checks that they are reachable, and puts them in one focused menu bar panel. Open a site, copy its URL, or stop its process without hunting through terminal tabs. Keep your existing workflow, or add project metadata through Vite, the TypeScript SDK, CLI, or MCP.
 
-| Path | Purpose |
+## A little order for your localhost
+
+| | |
 | --- | --- |
-| `Sources/LocalStackApp` | Menu bar app, panel UI, settings, deep links, previews |
-| `Sources/LocalStackCore` | Coordinator, discovery, probing, registry, IPC, process validation |
-| `Sources/LocalStackShared` | Shared models and JSON-RPC types |
-| `Sources/LocalStackWidget*` | WidgetKit extension and shared snapshots |
-| `cli` | Rust CLI and stdio MCP server |
-| `packages/unplugin-localstack` | TypeScript SDK and Vite plugin |
-| `Scripts` | Asset generation, packaging, installation, and LaunchAgent helpers |
+| **Start a server. It shows up.** | Automatically discovers the current user's loopback listeners and independently verifies HTML pages. |
+| **Feels at home on your Mac.** | SwiftUI + AppKit, Liquid Glass on macOS 26, system materials on macOS 15, light and dark appearances, and keyboard shortcuts. The Widget extension is a separate source target. |
+| **Useful pages, less noise.** | JSON-only APIs, databases, and opaque TCP ports stay out of the default list. |
+| **Process actions with checks.** | Revalidates PID, user, start time, and port ownership before stopping a service. Normal stops use `SIGTERM`; force is explicit. |
+| **Fits your tools.** | One local Coordinator serves the app, Rust CLI, stdio MCP server, TypeScript SDK, and Vite plugin. |
+| **Local by design.** | User-owned Unix socket and private local storage. No LAN scanning or uploading service names, ports, titles, or page contents. |
 
-## Requirements
+## Get started
 
-- macOS 15 or newer
-- Xcode 26 or newer (Swift 6.2+, matching `Package.swift`)
-- Rust toolchain for the CLI
-- Node.js 20+ for the TypeScript package
+1. **[Download LocalStack 0.2.3-beta.3](https://github.com/backrunner/localstack/releases/download/v0.2.3-beta.3/LocalStack-0.2.3-beta.3.dmg)** — macOS 15+, Apple Silicon and Intel. Currently in Beta.
+2. Open the DMG, install LocalStack in Applications, and launch it.
+3. Start your development server as usual. Click the stack icon in the menu bar to find your site.
 
-## Build and test
+No project plugin is required for automatic discovery. See the **[installation guide](https://localstack.pwp.sh/docs)** and **[discovery troubleshooting](https://localstack.pwp.sh/docs/discovery)**.
+
+Signed installations check for updates daily. Choose Stable or Beta in Settings; installation begins when you click to restart and update. Users of the original `0.2.3-beta.1` need one manual upgrade. Read the [update guide](https://localstack.pwp.sh/docs/updates).
+
+## Bring your workflow
+
+### Vite
+
+Give your server a recognizable name:
+
+```ts
+import { defineConfig } from 'vite';
+import LocalStack from 'unplugin-localstack/vite';
+
+export default defineConfig({
+  plugins: [
+    LocalStack({
+      name: 'Console',
+      projectRoot: process.cwd(),
+    }),
+  ],
+});
+```
+
+The package is currently available from this repository, **not published on npm**. Follow the [local package installation and SDK guide](https://localstack.pwp.sh/docs/vite). Registration is fail-open: your dev server continues to start if the Coordinator is unavailable. Registered services still undergo independent page and process validation.
+
+### CLI and MCP
+
+Install the CLI from the repository with `make install-local` (requires Rust), then add `~/.local/bin` to your `PATH`:
+
+```bash
+localstack status
+localstack list
+localstack --json list
+
+# Configure supported coding agents: Codex, Claude Code, Cursor
+localstack mcp install --target auto
+localstack --json mcp doctor
+```
+
+Keep the app running to provide the Coordinator. See the [CLI and MCP guide](https://localstack.pwp.sh/docs/cli) for setup and background operation.
+
+## Build and contribute
+
+Building the app requires **macOS 15+**, **Xcode 26+**, and **Swift 6.2+**. The CLI requires Rust; the TypeScript package requires Node.js 20+.
+
+```bash
+git clone https://github.com/backrunner/localstack.git
+cd localstack
+
+Scripts/compile_and_run.sh
+```
+
+Run the component checks:
 
 ```bash
 swift build
 swift test
 cargo test --manifest-path cli/Cargo.toml
+npm --prefix packages/unplugin-localstack ci
 npm --prefix packages/unplugin-localstack test
 ```
 
-Build the menu bar app and open it:
+Create an app bundle with `make package-app`, or a DMG with `make package-dmg`. Packaging uses an available Developer ID certificate; set `SIGN_IDENTITY=-` for a local ad-hoc build. Distribution uses `make release-dmg`, which requires Developer ID signing and Apple notarization. The Release DMG workflow builds tagged versions into verified draft releases. See [release setup](docs/macos-release.md) and [updater internals](docs/auto-updates.md).
 
-```bash
-Scripts/compile_and_run.sh
-```
+For a background-only Coordinator, use `make install-coordinator` / `make uninstall-coordinator`, or run `swift run LocalStackCoordinator` during development.
 
-Create a local app bundle or DMG:
+## Inside the project
 
-```bash
-make package-app
-make package-dmg
-```
+| Path | Purpose |
+| --- | --- |
+| [`Sources/LocalStackApp`](Sources/LocalStackApp) | Menu bar app, panel, settings, deep links, previews |
+| [`Sources/LocalStackCore`](Sources/LocalStackCore) | Coordinator, discovery, probing, registry, IPC, process validation |
+| [`Sources/LocalStackShared`](Sources/LocalStackShared) | Shared models and JSON-RPC types |
+| [`Sources/LocalStackWidget`](Sources/LocalStackWidget) | WidgetKit UI and snapshots |
+| [`cli`](cli) | Rust CLI and stdio MCP server |
+| [`packages/unplugin-localstack`](packages/unplugin-localstack) | TypeScript SDK and Vite plugin |
+| [`website`](website) | Official website and documentation, built with svedocs |
+| [`Scripts`](Scripts) | Assets, packaging, installation, LaunchAgent helpers |
 
-The packaging scripts use an available Developer ID certificate when present. For a local ad-hoc build, set `SIGN_IDENTITY=-`.
-
-For distribution, `make release-dmg` requires Developer ID signing and Apple
-notarization for both the universal app and DMG. The **Release DMG** GitHub Actions
-workflow builds tagged versions and assembles a verified draft release. See
-[macOS release setup](docs/macos-release.md) for secrets, local commands, and verification.
-
-Installed signed builds check for updates daily. Settings offers Stable and Beta
-channels, automatic downloads, and a user-confirmed restart to install. Beta also
-receives newer stable releases; switching channels never downgrades an app. See
-[automatic updates](docs/auto-updates.md) for version rules and the one-time manual
-migration from the original `0.2.3-beta.1` release.
-
-## Use the CLI
-
-```bash
-cargo run --manifest-path cli/Cargo.toml -- status
-cargo run --manifest-path cli/Cargo.toml -- list
-cargo run --manifest-path cli/Cargo.toml -- --json status
-```
-
-Install the CLI locally with `make install-local`. The CLI can also install and diagnose the LocalStack MCP server for supported agent configurations:
-
-```bash
-localstack mcp install --target auto
-localstack --json mcp doctor
-```
-
-## Register a Vite server
-
-```ts
-import LocalStack from "unplugin-localstack/vite";
-
-export default {
-  plugins: [
-    LocalStack({
-      name: "Console",
-      projectRoot: process.cwd(),
-    }),
-  ],
-};
-```
-
-Registration is fail-open: if the Coordinator is unavailable, the development server continues to start. The Coordinator still verifies the process and page before showing it in LocalStack.
-
-## Run a standalone Coordinator
-
-The app normally embeds the Coordinator. For a background-only setup, install the current-user LaunchAgent:
-
-```bash
-make install-coordinator
-make uninstall-coordinator
-```
-
-Or run it directly during development:
-
-```bash
-swift run LocalStackCoordinator
-```
-
-## Design and security
-
-LocalStack is intentionally local. It scans the current user's loopback listeners, stores its registry in the user's private application-support directory, and communicates over a user-owned Unix socket. It does not scan the LAN or upload service names, ports, titles, or page contents.
-
-The design notes in [`.agents`](.agents/README.md) describe the architecture, service lifecycle, protocol, and implementation roadmap.
+The [engineering notes](.agents/README.md) cover architecture, service lifecycle, protocol, and implementation decisions. To work on the website, start with [`website/README.md`](website/README.md).
 
 ## License
 
-MIT
+[MIT](LICENSE) · Built by [backrunner](https://github.com/backrunner).
+
+This is an independent macOS developer tool, unaffiliated with the LocalStack cloud emulator.
+
+## Distribution and Mac App Store
+
+LocalStack is free and MIT licensed. The GitHub DMG includes the menu bar app and embedded Coordinator; the CLI and Widget extension are separate source targets. There is currently no Mac App Store release. The existing app is unsandboxed and uses its own GitHub updater, so it is not ready for store submission. See the [dated App Store readiness assessment](docs/app-store-readiness.md) for evidence and the proposed free store path.
+
+The bilingual website lives in [`website`](website), using svedocs 0.3.0 and SvelteKit 3. Its documentation covers installation, discovery exclusions, single and batch stops, integrations, updates, privacy, and distribution.

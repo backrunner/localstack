@@ -6,5 +6,6 @@
 - `AppIcon-1024.png` / `../AppIcon.icns`：完整 macOS 图标尺寸。
 - `TrayTemplate.png`：20 pt、2× 菜单栏模板。
 - `DMGBackground.png`：720 × 480 pt、2× Finder 背景；文件包含正确的逻辑尺寸元数据。
+- `READMEHero.png`：README 品牌横幅，组合现有矢量标识与应用的真实预览渲染。运行 `cd website && node scripts/generate-social.mjs` 重新生成，同时更新官网分享图。
 
 运行 `make assets` 通过 AppKit 矢量绘制重新生成全部位图和 ICNS。DMG 中的图标位置由 `Scripts/dmg_settings.py` 定义，与背景预留区域对应。SwiftUI 面板中的标识由 `Design/Theme.swift` 的 `StackMark` 绘制。
