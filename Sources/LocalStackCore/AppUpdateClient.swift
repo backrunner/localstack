@@ -47,6 +47,7 @@ public actor AppUpdateClient {
 
     public func download(_ offer: AppUpdateOffer, to destination: URL) async throws {
         let (bytes, response) = try await session.bytes(for: request(offer.downloadURL))
+        defer { bytes.task.cancel() }
         try validate(response)
         if response.expectedContentLength > offer.manifest.size { throw AppUpdateError.invalidRelease }
         guard FileManager.default.createFile(atPath: destination.path, contents: nil, attributes: [.posixPermissions: 0o600]) else { throw AppUpdateError.unavailable }
@@ -70,6 +71,7 @@ public actor AppUpdateClient {
 
     private func fetch(_ url: URL, limit: Int) async throws -> Data {
         let (bytes, response) = try await session.bytes(for: request(url))
+        defer { bytes.task.cancel() }
         try validate(response)
         guard response.expectedContentLength <= limit else { throw AppUpdateError.invalidRelease }
         var data = Data()

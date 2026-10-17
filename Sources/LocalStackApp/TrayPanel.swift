@@ -416,7 +416,7 @@ private struct ServiceRow: View {
                 .disabled(!canStop)
                 .accessibilityLabel("停止 \(service.displayName)").help("停止服务")
             Menu {
-                Button("打开页面", systemImage: "safari") { onOpen(service) }
+                Button("打开页面", systemImage: "safari") { onOpenPage(service) }
                 Button("复制地址", systemImage: "doc.on.doc") { onCopy(service) }
                 Button("查看详情", systemImage: "info.circle") { onDetails(service) }
             } label: { Image(systemName: "ellipsis") }

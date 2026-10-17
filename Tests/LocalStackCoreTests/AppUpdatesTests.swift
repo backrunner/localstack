@@ -105,13 +105,20 @@ func publishedDMGStaging() throws {
     let image = directory.appendingPathComponent("LocalStack.dmg")
     try FileManager.default.copyItem(at: source, to: image)
     let contents = try Data(contentsOf: image)
-    let descriptor = try manifest([
-        "version": "0.2.3-beta.1", "buildNumber": "1.1", "teamIdentifier": "PB8H83VL3Z",
-        "fileName": "LocalStack-0.2.3-beta.1.dmg", "size": contents.count,
-        "sha256": SHA256.hash(data: contents).map { String(format: "%02x", $0) }.joined()
-    ])
+    let descriptor: AppUpdateManifest
+    if let path = ProcessInfo.processInfo.environment["LOCALSTACK_UPDATER_TEST_MANIFEST"] {
+        descriptor = try JSONDecoder().decode(AppUpdateManifest.self, from: Data(contentsOf: URL(fileURLWithPath: path)))
+    } else {
+        descriptor = try manifest([
+            "version": "0.2.3-beta.1", "buildNumber": "1.1", "teamIdentifier": "PB8H83VL3Z",
+            "fileName": "LocalStack-0.2.3-beta.1.dmg", "size": contents.count,
+            "sha256": SHA256.hash(data: contents).map { String(format: "%02x", $0) }.joined()
+        ])
+    }
+    try descriptor.validate(version: #require(AppReleaseVersion(descriptor.version)), team: descriptor.teamIdentifier,
+        size: Int64(contents.count))
     let offer = AppUpdateOffer(manifest: descriptor, downloadURL: URL(string: "https://github.com/backrunner/localstack")!)
-    let app = try AppUpdatePackage.prepare(image: image, offer: offer, directory: directory, team: "PB8H83VL3Z")
+    let app = try AppUpdatePackage.prepare(image: image, offer: offer, directory: directory, team: descriptor.teamIdentifier)
     #expect(FileManager.default.fileExists(atPath: app.appendingPathComponent("Contents/MacOS/LocalStack").path))
     #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("mount").path))
 }
